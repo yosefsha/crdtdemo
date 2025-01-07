@@ -8,6 +8,7 @@ const initialState = [];
 const d = (state = [], action:any) => {
     switch ( action.type) {
         case SAVE_COMMENT:
+            console.log(`action type ${action.type} payload ${action.payload}`);
             return [...state,action.payload];
         default:
             return state;

@@ -17,8 +17,8 @@ class CommentBox extends React.Component<CommentBoxProps> {
     private handleSubmit = (event: { preventDefault: () => void; }) => {
         event.preventDefault();
         // Call an action creator
-        console.log("submit:",this.state.comment);
-        console.log("submit: props: ",this.props);
+        console.log("CommentBox:handleSubmit:this.state.comment: ",this.state.comment);
+        console.log("CommentBox:handleSubmit: this.props: ",this.props);
         // And save the comment
         this.props.saveComment(this.state.comment);
         this.setState({ comment: '' });
