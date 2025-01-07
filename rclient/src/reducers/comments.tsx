@@ -1,8 +1,14 @@
+import { SAVE_COMMENT } from "../actions/types";
 
-const d = (state:any, action:any) => {
+const initialState = [];
+// {
+//     // define initial state here
+//     comments: []
+//   };
+const d = (state = [], action:any) => {
     switch ( action.type) {
-        case 'FETCH_COMMENTS':
-            return action.payload;
+        case SAVE_COMMENT:
+            return [...state,action.payload];
         default:
             return state;
     }

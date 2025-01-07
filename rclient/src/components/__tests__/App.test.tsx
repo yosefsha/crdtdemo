@@ -2,9 +2,13 @@ import React, { act } from 'react';
 import { render, screen } from '@testing-library/react';
 import App from '../App';
 import ReactDOM from 'react-dom/client';
+import  Root  from '../../root';
 
 it('renders learn react link', () => {
-  render(<App />);
+  render(
+  <Root>
+    <App />
+    </Root>);
   const linkElement = screen.getByText(/Comment:/i);
   act(() => {
   expect(linkElement).toBeInTheDocument();
@@ -17,7 +21,9 @@ it('should render', () => {
   document.body.appendChild(div);
   const root = ReactDOM.createRoot(div)
   act(() => {
-  root.render(<App />);
+  root.render(<Root>
+    <App/>
+    </Root>);
   }); 
   //clear the div
   document.body.removeChild(div);

@@ -1,12 +1,15 @@
 import React, { act } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import CommentBox from '../CommentBox';
-
+import Root from '../../root';
 describe.only('CommentBox', () => {
 
 
 it('renders learn react link', () => {
-  render(<CommentBox />);
+  render(
+<Root>
+  <CommentBox />
+</Root>);
    const linkElement = screen.getByText(/Comment:/i);
     act(() => {
     expect(linkElement).toBeInTheDocument();
@@ -15,7 +18,10 @@ it('renders learn react link', () => {
 });
 
 it('simulate change event', () => {
-    render(<CommentBox />);
+    render(
+    <Root>
+        <CommentBox/>
+                </Root>);
     const inputs = screen.getAllByLabelText (/Comment:/i);
     expect(inputs.length).toBe(1);
     const newValue = 'Hello World 2';
@@ -23,8 +29,11 @@ it('simulate change event', () => {
     expect(inputs[0]).toHaveValue(newValue);
 });
 
-it.only('simulate change event', () => {
-    render(<CommentBox />);
+it('simulate change event', () => {
+
+    render(<Root>
+        <CommentBox />
+        </Root>);
     const inputs = screen.getAllByLabelText (/Comment:/i);
     expect(inputs.length).toBe(1);
     const newValue = 'Hello World 2';
@@ -38,7 +47,11 @@ it.only('simulate change event', () => {
 });
 
 it('simulate change event wrong text', () => {
-    render(<CommentBox />);
+    render(
+<Root>
+    <CommentBox />
+</Root>
+);
     const newValue = 'Hello World 2';
     const inputs = screen.getAllByLabelText (/Comment:/i);
     expect(inputs.length).toBe(1);
