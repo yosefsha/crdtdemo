@@ -1,4 +1,4 @@
-import { SAVE_COMMENT } from "./types";
+import { SAVE_COMMENT, FETCH_COMMENTS, CHANGE_AUTH } from "./types";
 
 export function saveComment(comment: string) {
   console.log("saveComment action called: ", comment);
@@ -23,5 +23,13 @@ export function fetchComments() {
     } catch (error) {
       console.error("Error fetching comments:", error);
     }
+  };
+}
+
+export function setAuth(inLoggedIn: boolean) {
+  console.log("setAuth action called: ", inLoggedIn);
+  return {
+    type: CHANGE_AUTH,
+    payload: inLoggedIn,
   };
 }

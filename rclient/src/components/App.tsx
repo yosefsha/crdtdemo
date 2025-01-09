@@ -1,35 +1,69 @@
-import React from 'react';
-import CommentsList from './CommentsList';
-import CommentBox from './CommentBox';
-import './App.css';
+import React from "react";
+import CommentsList from "./CommentsList";
+import { connect } from "react-redux";
+import CommentBox from "./CommentBox";
+import { Routes, Route, Link } from "react-router-dom";
+import "./App.css";
+import * as actions from "../actions";
 
-// function App() {
-//   return (
-//     <div className="App">
-//       <header className="App-header">
-//         <img src={logo} className="App-logo" alt="logo" />
-//         <p>
-//           Edit <code>src/App.tsx</code> and save to reload.
-//         </p>
-//         <a
-//           className="App-link"
-//           href="https://reactjs.org"
-//           target="_blank"
-//           rel="noopener noreferrer"
-//         >
-//           Learn React
-//         </a>
-//       </header>
-//     </div>
-//   );
-// }
-function App() {
-  return (
-    <div className="App">
-  bla bla bla
-      <CommentsList />
-      <CommentBox />
-    </div>
-  );
+interface AppProps {
+  auth: boolean;
+  setAuth: (auth: boolean) => void;
 }
-export default App;
+
+class App extends React.Component<AppProps, {}> {
+  componentDidUpdate(prevProps: AppProps) {
+    if (prevProps.auth !== this.props.auth) {
+      console.log("Auth state changed:", this.props.auth);
+    }
+  }
+  renderLginButton() {
+    const buttonText = this.props.auth ? "Logout" : "Login";
+    return (
+      <button
+        onClick={() => {
+          console.log("login button clicked");
+          this.props.setAuth(!this.props.auth);
+        }}
+      >
+        {buttonText}
+      </button>
+    );
+  }
+  renderHeader() {
+    return (
+      <div>
+        <h1>React App</h1>
+        <nav>
+          <ul>
+            <li>
+              <Link to="/">Home</Link>
+            </li>
+            <li>
+              <Link to="/comment">Comment</Link>
+            </li>
+            <li>{this.renderLginButton()}</li>
+          </ul>
+        </nav>
+      </div>
+    );
+  }
+
+  render() {
+    return (
+      <div>
+        {this.renderHeader()}
+        <Routes>
+          <Route path="/" element={<CommentsList />} />
+          <Route path="/comment" element={<CommentBox />} />
+        </Routes>
+      </div>
+    );
+  }
+}
+
+function mapStateToProps(state: { auth: boolean }) {
+  return { auth: state.auth };
+}
+
+export default connect(mapStateToProps, actions)(App);
