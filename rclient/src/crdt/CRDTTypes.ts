@@ -43,10 +43,10 @@ export class LWWRegister<T> {
 export type Value<T> = {
   [key: string]: T;
 };
+// State is a record of keys to the full state of the corresponding register
 
-export type State<T> = {
-  [key: string]: LWWRegister<T | null>["state"];
-};
+// State is a map of keys to the full state of the corresponding register
+export type State<T> = Record<string, LWWRegister<T | null>["state"]>;
 
 export class LWWMap<T> {
   readonly id: string;

@@ -3,8 +3,10 @@ import CommentsList from "./CommentsList";
 import { connect } from "react-redux";
 import CommentBox from "./CommentBox";
 import { Routes, Route, Link } from "react-router-dom";
-import "./App.css";
+import "../styles/App.css";
+import CRDTDemo from "./CRDTDemo";
 import * as actions from "../actions";
+import LineDmo from "./LineDemo";
 
 interface AppProps {
   auth: boolean;
@@ -56,6 +58,8 @@ class App extends React.Component<AppProps, {}> {
         <Routes>
           <Route path="/" element={<CommentsList />} />
           <Route path="/comment" element={<CommentBox />} />
+          <Route path="/crdtdemo" element={<CRDTDemo />} />
+          <Route path="/line" element={<LineDmo />} />
         </Routes>
       </div>
     );

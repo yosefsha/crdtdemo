@@ -1,0 +1,10 @@
+.wrapper {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.canvases {
+  display: flex;
+  gap: 1rem;
+}

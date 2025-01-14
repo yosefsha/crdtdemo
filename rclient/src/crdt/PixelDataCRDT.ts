@@ -1,6 +1,6 @@
 import { LWWMap } from "./CRDTTypes";
 
-type RGB = [red: number, green: number, blue: number];
+export type RGB = [red: number, green: number, blue: number];
 
 export class PixelDataCRDT {
   readonly id: string;
