@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { State } from "../crdt/CRDTTypes";
 import { RGB, PixelDataCRDT } from "../crdt/PixelDataCRDT";
 import CanvasEditor from "./CanvasEditor";
@@ -9,9 +9,21 @@ const CRDTDemo = () => {
   const height = 200;
   const [sharedState, setSharedState] = useState<State<RGB>>({});
   const [color, setColor] = useState<RGB>([0, 0, 0]); // Default color
-  const pixelData1 = new PixelDataCRDT("pixelDataId");
-  const pixelData2 = new PixelDataCRDT("pixelDataId");
+  //   const pixelData1 = new PixelDataCRDT("pixelData1");
+  //   const [pixelData1] = useState(() => new PixelDataCRDT("pixelData1")); // Persistent state
+  const pixelData1 = useMemo(() => new PixelDataCRDT("pixelData1"), []); // Created only once
 
+  const pixelData2 = new PixelDataCRDT("pixelData2");
+  useEffect(() => {
+    console.log("Parent Component Rendered - pixelData:", pixelData1);
+  }, [pixelData1]);
+
+  // Draw a diagonal line from top-left to bottom-right
+  for (let i = 0; i < Math.min(width, height); i++) {
+    pixelData2.set(i, i, [0, 0, 0]); // Set the line color to black
+  }
+
+  ////
   const handleStateChange = (state: State<RGB>) => {
     setSharedState(Object.assign({}, state));
   };

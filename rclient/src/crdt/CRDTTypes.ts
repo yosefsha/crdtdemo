@@ -61,7 +61,7 @@ export class LWWMap<T> {
     }
   }
 
-  get value() {
+  get value(): Value<T> {
     const value: Value<T> = {};
 
     // build up an object where each value is set to the value of the register at the corresponding key

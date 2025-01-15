@@ -49,4 +49,27 @@ export class PixelDataCRDT {
   merge(state: PixelDataCRDT["state"]) {
     this.#data.merge(state);
   }
+
+  // prints the pixel data in the console if velue is not given rgb value defaults to [0, 0, 0]
+  printDiff(value: RGB = [0, 0, 0]) {
+    for (const [key, rgb] of Object.entries(this.value)) {
+      if (rgb[0] === value[0] && rgb[1] === value[1] && rgb[2] === value[2]) {
+        continue;
+      }
+      const [x, y] = key.split(",").map(Number);
+      console.log(`id: ${this.id} (${x}, ${y}): ${rgb}`);
+    }
+
+    console.log("============================");
+  }
+
+  checkDiff(value: RGB = [255, 255, 255]): boolean {
+    for (const [, rgb] of Object.entries(this.value)) {
+      if (rgb[0] === value[0] && rgb[1] === value[1] && rgb[2] === value[2]) {
+        continue;
+      }
+      return true;
+    }
+    return false;
+  }
 }
