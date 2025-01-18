@@ -34,11 +34,6 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
   };
 
   const handlePointerDown = (e: PointerEvent) => {
-    console.log(
-      `[${getTimestamp()}] CanvasEditor:${id} - PointerDown event:`,
-      e
-    );
-
     const canvas = canvasRef.current;
     if (!canvas) {
       console.error(
@@ -46,84 +41,128 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
       );
       return;
     }
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left) / (rect.width / width));
-    const y = Math.floor((e.clientY - rect.top) / (rect.height / height));
-
-    console.log(
-      `[${getTimestamp()}] CanvasEditor:${id} - Start drawing at (${x}, ${y}).`
-    );
+    canvas.setPointerCapture(e.pointerId);
     isDrawingRef.current = true;
-    lastPosRef.current = { x, y };
-    handlePointerEvent(e);
+    console.log(
+      `[${getTimestamp()}] CanvasEditor:${id} - PointerDown event: did set pointer capture and isDrawing to true.`
+    );
   };
 
   const handlePointerMove = (e: PointerEvent) => {
     if (!isDrawingRef.current) return;
-
-    console.log(
-      `[${getTimestamp()}] CanvasEditor:${id} - PointerMove event:`,
-      e
-    );
-    handlePointerEvent(e);
-  };
-
-  const handlePointerUp = () => {
-    console.log(`[${getTimestamp()}] CanvasEditor:${id} - PointerUp event.`);
-    isDrawingRef.current = false;
-    lastPosRef.current = null;
-  };
-
-  const handlePointerEvent = (e: PointerEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${id} - No canvas found in PointerEvent.`
+        `[${getTimestamp()}] CanvasEditor:${id} - No canvas found in PointerMove.`
       );
       return;
     }
-
     const rect = canvas.getBoundingClientRect();
     const x = Math.floor((e.clientX - rect.left) / (rect.width / width));
     const y = Math.floor((e.clientY - rect.top) / (rect.height / height));
-    const ctx = canvas.getContext("2d");
+    if (
+      lastPosRef.current &&
+      (lastPosRef.current.x !== x || lastPosRef.current.y !== y)
+    ) {
+      // Draw a line from the last position to the current position
+      paintLine({ x: lastPosRef.current.x, y: lastPosRef.current.y }, { x, y });
+    }
+    lastPosRef.current = { x, y };
+  };
 
-    if (!ctx) {
+  const paintLine = (
+    start: { x: number; y: number },
+    end: { x: number; y: number }
+  ) => {
+    // Calculate the differences in the x and y coordinates
+    const dx = Math.abs(end.x - start.x);
+    const dy = Math.abs(end.y - start.y);
+
+    // Determine the direction of the line
+    const sx = start.x < end.x ? 1 : -1;
+    const sy = start.y < end.y ? 1 : -1;
+
+    // Initialize the error term
+    let err = dx - dy;
+    let e2;
+
+    while (true) {
+      // Paint the current pixel
+      paint(start.x, start.y);
+
+      // Check if the end point has been reached
+      if (start.x === end.x && start.y === end.y) break;
+
+      // Calculate the error term
+      e2 = 2 * err;
+
+      // Adjust the error term and the x coordinate
+      if (e2 > -dy) {
+        err -= dy;
+        start.x += sx;
+      }
+
+      // Adjust the error term and the y coordinate
+      if (e2 < dx) {
+        err += dx;
+        start.y += sy;
+      }
+    }
+  };
+
+  async function draw(
+    x: number,
+    y: number,
+    color: [number, number, number],
+    ctx: CanvasRenderingContext2D
+  ) {
+    /** Number of channels per pixel; R, G, B, A */
+    const chans = 4;
+
+    /** A buffer to hold the raw pixel data.
+     * Each pixel corresponds to four bytes in the buffer,
+     * so the full size is the number of pixels times the number of channels per pixel. */
+    const buffer = new Uint8ClampedArray(chans);
+    // set the pixel color at position (x, y) on canvas to the color
+    buffer[0] = color[0];
+    buffer[1] = color[1];
+    buffer[2] = color[2];
+    buffer[3] = 255; // Alpha channel
+    const imageData = new ImageData(buffer, 1, 1);
+    console.log(
+      `[${getTimestamp()}] CanvasEditor:${id} - draw color: [${color}] at (${x}, ${y})`
+    );
+    // draw the pixel on the canvas
+    ctx.putImageData(imageData, x, y);
+  }
+
+  const handlePointerUp = () => {
+    isDrawingRef.current = false;
+    lastPosRef.current = null;
+    console.log(
+      `[${getTimestamp()}] CanvasEditor:${id} - PointerUp event did set isDrawing to false and lastPos to null.`
+    );
+  };
+
+  const paint = (x: number, y: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${id} - No 2D context found.`
+        `[${getTimestamp()}] CanvasEditor:${id} - No canvas found in draw.`
       );
       return;
     }
-    console.log(
-      `[${getTimestamp()}] CanvasEditor:${id} - Drawing at (${x}, ${y}). Color: [${color[0]}, ${color[1]}, ${color[2]}].`
-    );
-
-    pixelData.set(x, y, color);
-    // Validate update
-    if (pixelData.get(x, y) !== color) {
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${id} - PixelData update failed at (${x}, ${y}).`
+        `[${getTimestamp()}] CanvasEditor:${id} - No 2D context found in draw.`
       );
+      return;
     }
 
-    if (lastPosRef.current) {
-      console.log(
-        `[${getTimestamp()}] CanvasEditor:${id} - Drawing line from (${lastPosRef.current.x}, ${lastPosRef.current.y}) to (${x}, ${y}).`
-      );
-      ctx.beginPath();
-      ctx.moveTo(lastPosRef.current.x, lastPosRef.current.y);
-      ctx.lineTo(x, y);
-      ctx.strokeStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
-      ctx.globalAlpha = 1.0;
-      ctx.stroke();
-    }
-
-    lastPosRef.current = { x, y };
-
-    console.log(
-      `[${getTimestamp()}] CanvasEditor:${id} - Updated pixel data state.`
-    );
-    onStateChange(pixelData.state);
+    // Update pixel data
+    pixelData.set(x, y, color);
+    draw(x, y, color, ctx);
   };
 
   useEffect(() => {
@@ -170,7 +209,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
       ctx.putImageData(imgData, 0, 0);
     };
 
-    drawCanvas();
+    // drawCanvas();
 
     canvas.addEventListener("pointerdown", handlePointerDown);
     canvas.addEventListener("pointermove", handlePointerMove);
@@ -186,7 +225,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
       canvas.removeEventListener("pointerup", handlePointerUp);
       canvas.removeEventListener("pointerleave", handlePointerUp);
     };
-  }, [color]);
+  }, []);
 
   return (
     <canvas
