@@ -44,6 +44,9 @@ class App extends React.Component<AppProps, {}> {
             <li>
               <Link to="/comment">Comment</Link>
             </li>
+            <li>
+              <Link to="/crdtdemo">Comment</Link>
+            </li>
             <li>{this.renderLginButton()}</li>
           </ul>
         </nav>
