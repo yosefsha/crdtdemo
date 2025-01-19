@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from "react";
 import css from "../styles/Canvas.module.css";
 import { PixelDataCRDT, RGB } from "../crdt/PixelDataCRDT";
 import { State } from "../crdt/CRDTTypes";
+import d from "../reducers/comments";
 
 interface CanvasEditorProps {
   id: string;
@@ -10,6 +11,7 @@ interface CanvasEditorProps {
   onStateChange: (state: State<RGB>) => void;
   color: [number, number, number];
   pixelData: PixelDataCRDT;
+  sharedState: State<RGB>;
 }
 
 const CanvasEditor: React.FC<CanvasEditorProps> = ({
@@ -19,6 +21,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
   onStateChange,
   color,
   pixelData,
+  sharedState,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
@@ -163,6 +166,30 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     console.log(
       `[${getTimestamp()}] CanvasEditor:${id} - PointerUp event did set isDrawing to false and lastPos to null.`
     );
+    onStateChange(pixelData.state);
+  };
+
+  const drawCanvasFromData = (ctx: CanvasRenderingContext2D) => {
+    console.log(
+      `[${getTimestamp()}] CanvasEditor:${id} - drawCanvas: isDrawingRef.current: ${isDrawingRef.current}`
+    );
+    const imgData = ctx.createImageData(width, height);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const index = (y * width + x) * 4;
+        const [r, g, b] = pixelData.get(x, y);
+        if (r !== 255 || g !== 255 || b !== 255) {
+          console.log(
+            `[${getTimestamp()}] CanvasEditor:${id} - drawCanvas: pixelData.get(${x}, ${y}): [${r}, ${g}, ${b}]`
+          );
+        }
+        imgData.data[index] = r;
+        imgData.data[index + 1] = g;
+        imgData.data[index + 2] = b;
+        imgData.data[index + 3] = 255; // Alpha channel
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
   };
 
   useEffect(() => {
@@ -189,30 +216,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     // ctx.lineWidth = 2;
     // ctx.lineCap = "round";
 
-    const drawCanvasFromData = () => {
-      console.log(
-        `[${getTimestamp()}] CanvasEditor:${id} - drawCanvas: isDrawingRef.current: ${isDrawingRef.current}`
-      );
-      const imgData = ctx.createImageData(width, height);
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const index = (y * width + x) * 4;
-          const [r, g, b] = pixelData.get(x, y);
-          if (r !== 255 || g !== 255 || b !== 255) {
-            console.log(
-              `[${getTimestamp()}] CanvasEditor:${id} - drawCanvas: pixelData.get(${x}, ${y}): [${r}, ${g}, ${b}]`
-            );
-          }
-          imgData.data[index] = r;
-          imgData.data[index + 1] = g;
-          imgData.data[index + 2] = b;
-          imgData.data[index + 3] = 255; // Alpha channel
-        }
-      }
-      ctx.putImageData(imgData, 0, 0);
-    };
-
-    drawCanvasFromData();
+    drawCanvasFromData(ctx);
 
     canvas.addEventListener("pointerdown", handlePointerDown);
     canvas.addEventListener("pointermove", handlePointerMove);
@@ -229,6 +233,29 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
       canvas.removeEventListener("pointerleave", handlePointerUp);
     };
   }, [color]);
+
+  // listen for changes in the shared state
+  useEffect(() => {
+    console.log(
+      `[${getTimestamp()}] CanvasEditor:${id} - useEffect: sharedState: ${sharedState}`
+    );
+    pixelData.merge(sharedState);
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      console.error(
+        `[${getTimestamp()}] CanvasEditor:${id} - No canvas found in useEffect sharedState.`
+      );
+      return;
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      console.error(
+        `[${getTimestamp()}] CanvasEditor:${id} - No 2D context found in useEffect sharedState.`
+      );
+      return;
+    }
+    drawCanvasFromData(ctx);
+  }, [sharedState]);
 
   return (
     <canvas
