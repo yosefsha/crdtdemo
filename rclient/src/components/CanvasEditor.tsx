@@ -2,7 +2,6 @@ import React, { useRef, useEffect } from "react";
 import css from "../styles/Canvas.module.css";
 import { PixelDataCRDT, RGB } from "../crdt/PixelDataCRDT";
 import { State } from "../crdt/CRDTTypes";
-import d from "../reducers/comments";
 
 interface CanvasEditorProps {
   id: string;
@@ -178,11 +177,6 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
       for (let x = 0; x < width; x++) {
         const index = (y * width + x) * 4;
         const [r, g, b] = pixelData.get(x, y);
-        if (r !== 255 || g !== 255 || b !== 255) {
-          console.log(
-            `[${getTimestamp()}] CanvasEditor:${id} - drawCanvas: pixelData.get(${x}, ${y}): [${r}, ${g}, ${b}]`
-          );
-        }
         imgData.data[index] = r;
         imgData.data[index + 1] = g;
         imgData.data[index + 2] = b;
@@ -212,10 +206,6 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
       return;
     }
 
-    // ctx.globalAlpha = 1.0;
-    // ctx.lineWidth = 2;
-    // ctx.lineCap = "round";
-
     drawCanvasFromData(ctx);
 
     canvas.addEventListener("pointerdown", handlePointerDown);
@@ -232,7 +222,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
       canvas.removeEventListener("pointerup", handlePointerUp);
       canvas.removeEventListener("pointerleave", handlePointerUp);
     };
-  }, [color]);
+  }, [color, id, pixelData, width, height, onStateChange]);
 
   // listen for changes in the shared state
   useEffect(() => {
@@ -266,9 +256,5 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     />
   );
 };
-
-// export default React.memo(CanvasEditor, (prevProps, nextProps) => {
-//   return prevProps.color === nextProps.color;
-// });
 
 export default CanvasEditor;
