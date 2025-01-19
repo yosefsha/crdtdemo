@@ -25,6 +25,7 @@ const CRDTDemo = () => {
 
   ////
   const handleStateChange = (state: State<RGB>) => {
+    console.log("CRDTDemo: handleStateChange: set shared state: ", state);
     setSharedState(Object.assign({}, state));
   };
 

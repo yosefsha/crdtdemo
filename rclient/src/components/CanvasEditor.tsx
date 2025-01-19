@@ -65,12 +65,12 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
       (lastPosRef.current.x !== x || lastPosRef.current.y !== y)
     ) {
       // Draw a line from the last position to the current position
-      paintLine({ x: lastPosRef.current.x, y: lastPosRef.current.y }, { x, y });
+      drawLine({ x: lastPosRef.current.x, y: lastPosRef.current.y }, { x, y });
     }
     lastPosRef.current = { x, y };
   };
 
-  const paintLine = (
+  const drawLine = (
     start: { x: number; y: number },
     end: { x: number; y: number }
   ) => {
@@ -88,7 +88,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
 
     while (true) {
       // Paint the current pixel
-      paint(start.x, start.y);
+      draw(start.x, start.y);
 
       // Check if the end point has been reached
       if (start.x === end.x && start.y === end.y) break;
@@ -110,7 +110,28 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     }
   };
 
-  async function draw(
+  const draw = (x: number, y: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      console.error(
+        `[${getTimestamp()}] CanvasEditor:${id} - No canvas found in draw.`
+      );
+      return;
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      console.error(
+        `[${getTimestamp()}] CanvasEditor:${id} - No 2D context found in draw.`
+      );
+      return;
+    }
+
+    // Update pixel data
+    pixelData.set(x, y, color);
+    drawOnCanvas(x, y, color, ctx);
+  };
+
+  async function drawOnCanvas(
     x: number,
     y: number,
     color: [number, number, number],
@@ -144,28 +165,10 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     );
   };
 
-  const paint = (x: number, y: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) {
-      console.error(
-        `[${getTimestamp()}] CanvasEditor:${id} - No canvas found in draw.`
-      );
-      return;
-    }
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      console.error(
-        `[${getTimestamp()}] CanvasEditor:${id} - No 2D context found in draw.`
-      );
-      return;
-    }
-
-    // Update pixel data
-    pixelData.set(x, y, color);
-    draw(x, y, color, ctx);
-  };
-
   useEffect(() => {
+    console.log(
+      `[${getTimestamp()}] CanvasEditor:${id} - useEffect: color: [${color}]`
+    );
     const canvas = canvasRef.current;
     if (!canvas) {
       console.error(
@@ -182,11 +185,11 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
       return;
     }
 
-    ctx.globalAlpha = 1.0;
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
+    // ctx.globalAlpha = 1.0;
+    // ctx.lineWidth = 2;
+    // ctx.lineCap = "round";
 
-    const drawCanvas = () => {
+    const drawCanvasFromData = () => {
       console.log(
         `[${getTimestamp()}] CanvasEditor:${id} - drawCanvas: isDrawingRef.current: ${isDrawingRef.current}`
       );
@@ -209,7 +212,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
       ctx.putImageData(imgData, 0, 0);
     };
 
-    // drawCanvas();
+    drawCanvasFromData();
 
     canvas.addEventListener("pointerdown", handlePointerDown);
     canvas.addEventListener("pointermove", handlePointerMove);
@@ -225,7 +228,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
       canvas.removeEventListener("pointerup", handlePointerUp);
       canvas.removeEventListener("pointerleave", handlePointerUp);
     };
-  }, []);
+  }, [color]);
 
   return (
     <canvas
@@ -236,5 +239,9 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     />
   );
 };
+
+// export default React.memo(CanvasEditor, (prevProps, nextProps) => {
+//   return prevProps.color === nextProps.color;
+// });
 
 export default CanvasEditor;
