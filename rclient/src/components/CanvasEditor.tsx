@@ -22,6 +22,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
   pixelData,
   sharedState,
 }) => {
+  const deltasRef = useRef<PixelDelta[]>([]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -130,7 +131,8 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
 
     // Update pixel data
     const delta = pixelData.set(x, y, color);
-    onStateChange([delta]);
+
+    deltasRef.current.push(delta);
     drawOnCanvas(x, y, color, ctx);
   };
 
@@ -166,7 +168,8 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     console.log(
       `[${getTimestamp()}] CanvasEditor:${id} - PointerUp event did set isDrawing to false and lastPos to null.`
     );
-    // onStateChange(pixelData.state);
+    onStateChange(deltasRef.current);
+    deltasRef.current = [];
   };
 
   const drawCanvasFromData = (ctx: CanvasRenderingContext2D) => {
