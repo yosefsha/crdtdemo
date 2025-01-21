@@ -1,13 +1,13 @@
 import React, { useRef, useEffect } from "react";
 import css from "../styles/Canvas.module.css";
-import { PixelDataCRDT, RGB } from "../crdt/PixelDataCRDT";
+import { PixelDataCRDT, PixelDelta, RGB } from "../crdt/PixelDataCRDT";
 import { State } from "../crdt/CRDTTypes";
 
 interface CanvasEditorProps {
   id: string;
   width: number;
   height: number;
-  onStateChange: (state: State<RGB>) => void;
+  onStateChange: (deltas: PixelDelta[]) => void;
   color: [number, number, number];
   pixelData: PixelDataCRDT;
   sharedState: State<RGB>;
@@ -129,7 +129,8 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     }
 
     // Update pixel data
-    pixelData.set(x, y, color);
+    const delta = pixelData.set(x, y, color);
+    onStateChange([delta]);
     drawOnCanvas(x, y, color, ctx);
   };
 
@@ -165,7 +166,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     console.log(
       `[${getTimestamp()}] CanvasEditor:${id} - PointerUp event did set isDrawing to false and lastPos to null.`
     );
-    onStateChange(pixelData.state);
+    // onStateChange(pixelData.state);
   };
 
   const drawCanvasFromData = (ctx: CanvasRenderingContext2D) => {
@@ -229,7 +230,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     console.log(
       `[${getTimestamp()}] CanvasEditor:${id} - useEffect: sharedState: ${sharedState}`
     );
-    pixelData.merge(sharedState);
+    // pixelData.merge(sharedState);
     const canvas = canvasRef.current;
     if (!canvas) {
       console.error(

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { State } from "../crdt/CRDTTypes";
-import { RGB, PixelDataCRDT } from "../crdt/PixelDataCRDT";
+import { RGB, PixelDataCRDT, PixelDelta } from "../crdt/PixelDataCRDT";
 import CanvasEditor from "./CanvasEditor";
 import css from "../styles/CRDTDemo.module.css";
 
@@ -22,9 +22,15 @@ const CRDTDemo = () => {
   //   }
 
   ////
-  const handleStateChange = (state: State<RGB>) => {
-    console.log("CRDTDemo: handleStateChange: set shared state: ", state);
-    setSharedState(state);
+  // const handleStateChange = (state: State<RGB>) => {
+  //   console.log("CRDTDemo: handleStateChange: set shared state: ", state);
+  //   setSharedState(state);
+  // };
+  const handleStateChange = (deltas: PixelDelta[]) => {
+    console.log("CRDTDemo: handleStateChange: received deltas: ", deltas);
+    pixelData1.merge(deltas);
+    pixelData2.merge(deltas);
+    setSharedState({});
   };
 
   /** Extracts the RGB values from a hex color string. */

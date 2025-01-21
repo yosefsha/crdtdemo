@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.router = void 0;
+exports.requireAuth = requireAuth;
 const express_1 = require("express");
 const router = (0, express_1.Router)();
 exports.router = router;
@@ -10,10 +11,9 @@ function requireAuth(req, res, next) {
         return;
     }
     res.status(403);
-    res.send('Not permitted');
+    res.send("Not permitted");
 }
-;
-router.get('/login', (req, res) => {
+router.get("/login", (req, res) => {
     res.send(`
         <h1>login page</h1>
         <form method="post">
@@ -21,7 +21,7 @@ router.get('/login', (req, res) => {
             <input type="password" name="password" placeholder="password" />
             <button type="submit">Login</button>`);
 });
-router.get('/', (req, res) => {
+router.get("/", (req, res) => {
     if (req.session && req.session.loggedIn) {
         res.send(`
         <div>
@@ -33,7 +33,7 @@ router.get('/', (req, res) => {
         `);
     }
     else {
-        console.log('not logged in');
+        console.log("not logged in");
         console.log(req.session);
         res.send(`
         <div>
@@ -43,25 +43,25 @@ router.get('/', (req, res) => {
         `);
     }
 });
-router.post('/login', (req, res) => {
+router.post("/login", (req, res) => {
     const { email, password } = req.body;
-    if (email && password && email === 'hi@hi.com' && password === 'admin') {
+    if (email && password && email === "hi@hi.com" && password === "admin") {
         // mark this person as logged in
         if (req.session) {
             req.session.loggedIn = true;
         }
         // redirect them to the root route
-        res.redirect('/');
+        res.redirect("/");
     }
     else {
-        res.send('Invalid username or password');
+        res.send("Invalid username or password");
     }
 });
-router.get('/logout', (req, res) => {
+router.get("/logout", (req, res) => {
     if (req.session && req.session.loggedIn) {
         req.session.loggedIn = false;
         req.session = undefined;
-        res.redirect('/');
+        res.redirect("/");
         // req.session.destroy(err => {
         //     if (err) {
         //         console.log(err);
@@ -72,7 +72,7 @@ router.get('/logout', (req, res) => {
         // });
     }
 });
-router.get('/restricted', requireAuth, (req, res) => {
+router.get("/restricted", requireAuth, (req, res) => {
     res.send(`
         <div>
             <div>You are logged in restricted area</div>
