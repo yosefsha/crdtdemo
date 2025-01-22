@@ -8,6 +8,7 @@ import {
 } from "../crdt/PixelDataCRDT";
 import CanvasEditor from "./CanvasEditor";
 import css from "../styles/CRDTDemo.module.css";
+import config from "../config";
 
 const CRDTDemo = () => {
   const width = 200;
@@ -31,15 +32,36 @@ const CRDTDemo = () => {
   //   console.log("CRDTDemo: handleStateChange: set shared state: ", state);
   //   setSharedState(state);
   // };
-  const handleStateChange = (deltasPacket: PixelDeltaPacket) => {
+  const handleStateChange = async (deltaPacket: PixelDeltaPacket) => {
     console.log(
-      "CRDTDemo: handleStateChange: received deltas of ",
-      deltasPacket.agentId,
-      " pixels"
+      `CRDTDemo: handleStateChange: will send ${deltaPacket.deltas.length} deltas of agent ${deltaPacket.agentId} to server `
     );
-    pixelData1.merge(deltasPacket);
-    pixelData2.merge(deltasPacket);
-    setSharedState((prev) => prev + 1);
+
+    try {
+      const response = await fetch(`${config.apiDomain}/api/sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ deltas: deltaPacket }),
+      });
+
+      if (response.ok) {
+        const responseData = await response.json();
+        const serverDeltas = responseData.deltas as PixelDeltaPacket;
+        console.log(
+          `CRDTDemo: handleStateChange: server deltas count: `,
+          serverDeltas.deltas.length
+        );
+        pixelData2.merge(serverDeltas);
+        pixelData1.merge(serverDeltas);
+        setSharedState((prev) => prev + 1);
+      } else {
+        console.error("Failed to sync with server");
+      }
+    } catch (error) {
+      console.error("Error syncing with server:", error);
+    }
   };
 
   /** Extracts the RGB values from a hex color string. */

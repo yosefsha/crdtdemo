@@ -13,7 +13,7 @@ router.get("/sync", (req: RequestWithBody, res: Response) => {
 router.post("/sync", (req: RequestWithBody, res: Response) => {
   //check if request has a body
   if (!req.body) {
-    res.status(422).send("You must provide a state");
+    res.status(422).send("You must provide a delta packet");
     return;
   }
   console.log("body: :", req.body);
@@ -30,7 +30,7 @@ router.post("/sync", (req: RequestWithBody, res: Response) => {
   //pass the state to the syncState method
   try {
     const syncResult = crdtService.syncDeltas(deltas);
-    res.json({ state: syncResult });
+    res.json({ deltas: syncResult });
   } catch (error) {
     res.status(400).send("Error syncing state");
   }

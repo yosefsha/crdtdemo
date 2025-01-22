@@ -36,7 +36,7 @@ class CRDTService {
   //   return this.pixelData.state;
   // }
   syncDeltas(deltas: PixelDeltaPacket) {
-    this.pixelData.merge(deltas);
+    return this.pixelData.merge(deltas);
   }
 }
 

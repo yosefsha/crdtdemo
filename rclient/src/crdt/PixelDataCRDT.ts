@@ -24,7 +24,7 @@ export interface PixelDelta {
 export class PixelDataCRDT {
   private state: State;
   private id: string;
-
+  private history: PixelDelta[] = [];
   constructor(id: string) {
     this.id = id;
     this.state = {};
@@ -39,20 +39,28 @@ export class PixelDataCRDT {
     const key = this.getKey(x, y);
     const timestamp = Date.now();
     this.state[key] = { color, timestamp };
-    return { x, y, color, timestamp };
+    const delta: PixelDelta = { x, y, color, timestamp };
+    this.history.push(delta);
+
+    return delta;
   }
 
   merge(packet: PixelDeltaPacket): PixelDeltaPacket {
     if (packet.agentId === this.id) return { deltas: [], agentId: this.id };
+    const newDeltas: PixelDelta[] = [];
+
     packet.deltas.forEach((delta) => {
       const key = this.getKey(delta.x, delta.y);
       const currentPixel = this.state[key];
       if (!currentPixel || delta.timestamp > currentPixel.timestamp) {
         this.state[key] = { color: delta.color, timestamp: delta.timestamp };
+        newDeltas.push(delta);
       }
     });
-
-    return this.getAllDeltas();
+    console.log("newDeltas lenght: ", newDeltas.length);
+    console.log("newDeltas", newDeltas);
+    this.history.push(...newDeltas);
+    return { deltas: newDeltas, agentId: this.id };
   }
 
   // getDeltas returns an array of PixelDelta objects of the current state
