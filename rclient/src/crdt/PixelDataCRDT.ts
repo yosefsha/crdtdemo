@@ -9,6 +9,11 @@ interface State {
   [key: string]: Pixel;
 }
 
+export interface PixelDeltaPacket {
+  deltas: PixelDelta[];
+  agentId: string;
+}
+
 export interface PixelDelta {
   x: number;
   y: number;
@@ -37,23 +42,30 @@ export class PixelDataCRDT {
     return { x, y, color, timestamp };
   }
 
-  merge(deltas: PixelDelta[]): void {
-    deltas.forEach((delta) => {
+  merge(packet: PixelDeltaPacket): PixelDeltaPacket {
+    if (packet.agentId === this.id) return { deltas: [], agentId: this.id };
+    packet.deltas.forEach((delta) => {
       const key = this.getKey(delta.x, delta.y);
       const currentPixel = this.state[key];
       if (!currentPixel || delta.timestamp > currentPixel.timestamp) {
         this.state[key] = { color: delta.color, timestamp: delta.timestamp };
       }
     });
+
+    return this.getAllDeltas();
   }
 
-  getDeltas(): PixelDelta[] {
-    return Object.keys(this.state).map((key) => {
+  // getDeltas returns an array of PixelDelta objects of the current state
+  getAllDeltas(): PixelDeltaPacket {
+    const deltas = Object.keys(this.state).map((key) => {
       const [x, y] = key.split(",").map(Number);
       const { color, timestamp } = this.state[key];
-      return { x, y, color, timestamp };
+      return { x, y, color, timestamp, agentId: this.id };
     });
+    return { deltas, agentId: this.id };
   }
+
+  // TODO: add a methot that checks current version of the state and returns the deltas that are not in the current state
 
   private getKey(x: number, y: number): string {
     return `${x},${y}`;

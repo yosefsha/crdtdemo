@@ -1,13 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { State } from "../crdt/CRDTTypes";
-import { RGB, PixelDataCRDT, PixelDelta } from "../crdt/PixelDataCRDT";
+import {
+  RGB,
+  PixelDataCRDT,
+  PixelDelta,
+  PixelDeltaPacket,
+} from "../crdt/PixelDataCRDT";
 import CanvasEditor from "./CanvasEditor";
 import css from "../styles/CRDTDemo.module.css";
 
 const CRDTDemo = () => {
   const width = 200;
   const height = 200;
-  const [sharedState, setSharedState] = useState<State<RGB>>({});
+  const [sharedState, setSharedState] = useState(0);
   const [color, setColor] = useState<RGB>([0, 0, 0]); // Default color
   const pixelData1 = useMemo(() => new PixelDataCRDT("pixelData1"), []); // Created only once
   const pixelData2 = useMemo(() => new PixelDataCRDT("pixelData2"), []);
@@ -26,11 +31,15 @@ const CRDTDemo = () => {
   //   console.log("CRDTDemo: handleStateChange: set shared state: ", state);
   //   setSharedState(state);
   // };
-  const handleStateChange = (deltas: PixelDelta[]) => {
-    console.log("CRDTDemo: handleStateChange: received deltas: ", deltas);
-    pixelData1.merge(deltas);
-    pixelData2.merge(deltas);
-    setSharedState({});
+  const handleStateChange = (deltasPacket: PixelDeltaPacket) => {
+    console.log(
+      "CRDTDemo: handleStateChange: received deltas of ",
+      deltasPacket.agentId,
+      " pixels"
+    );
+    pixelData1.merge(deltasPacket);
+    pixelData2.merge(deltasPacket);
+    setSharedState((prev) => prev + 1);
   };
 
   /** Extracts the RGB values from a hex color string. */

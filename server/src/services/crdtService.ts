@@ -1,4 +1,4 @@
-import { PixelDataCRDT } from "../crdt/PixelDataCRDT";
+import { PixelDataCRDT, PixelDeltaPacket } from "../crdt/PixelDataCRDT";
 import { State } from "../crdt/CRDTTypes";
 import { getCurrentDateTimeString } from "./helpers";
 
@@ -23,17 +23,20 @@ class CRDTService {
     return this.pixelData;
   }
 
-  getCurrentState(): State<[number, number, number]> {
-    return this.pixelData.state;
-  }
+  // getCurrentState(): State<[number, number, number]> {
+  //   return this.pixelData.state;
+  // }
 
   setPixelData(pixelData: PixelDataCRDT) {
     this.pixelData = pixelData;
   }
 
-  syncState(state: State<[number, number, number]>) {
-    this.pixelData.merge(state);
-    return this.pixelData.state;
+  // syncState(state: State<[number, number, number]>) {
+  //   this.pixelData.merge(state);
+  //   return this.pixelData.state;
+  // }
+  syncDeltas(deltas: PixelDeltaPacket) {
+    this.pixelData.merge(deltas);
   }
 }
 

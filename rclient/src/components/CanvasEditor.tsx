@@ -1,16 +1,19 @@
 import React, { useRef, useEffect } from "react";
 import css from "../styles/Canvas.module.css";
-import { PixelDataCRDT, PixelDelta, RGB } from "../crdt/PixelDataCRDT";
-import { State } from "../crdt/CRDTTypes";
+import {
+  PixelDataCRDT,
+  PixelDelta,
+  PixelDeltaPacket,
+} from "../crdt/PixelDataCRDT";
 
 interface CanvasEditorProps {
   id: string;
   width: number;
   height: number;
-  onStateChange: (deltas: PixelDelta[]) => void;
+  onStateChange: (deltas: PixelDeltaPacket) => void;
   color: [number, number, number];
   pixelData: PixelDataCRDT;
-  sharedState: State<RGB>;
+  sharedState: number;
 }
 
 const CanvasEditor: React.FC<CanvasEditorProps> = ({
@@ -168,7 +171,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     console.log(
       `[${getTimestamp()}] CanvasEditor:${id} - PointerUp event did set isDrawing to false and lastPos to null.`
     );
-    onStateChange(deltasRef.current);
+    onStateChange({ deltas: deltasRef.current, agentId: id });
     deltasRef.current = [];
   };
 

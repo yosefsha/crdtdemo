@@ -1,75 +1,73 @@
-import { LWWMap } from "./CRDTTypes";
+export type RGB = [number, number, number];
 
-export type RGB = [red: number, green: number, blue: number];
+interface Pixel {
+  color: RGB;
+  timestamp: number;
+}
+
+interface State {
+  [key: string]: Pixel;
+}
+
+export interface PixelDeltaPacket {
+  deltas: PixelDelta[];
+  agentId: string;
+}
+
+export interface PixelDelta {
+  x: number;
+  y: number;
+  color: RGB;
+  timestamp: number;
+}
 
 export class PixelDataCRDT {
-  readonly id: string;
-  #data: LWWMap<RGB>;
+  private state: State;
+  private id: string;
 
   constructor(id: string) {
     this.id = id;
-    this.#data = new LWWMap(this.id, {});
-  }
-
-  /**
-   * Returns a stringified version of the given coordinates.
-   * @param x X coordinate.
-   * @param y Y coordinate.
-   * @returns Stringified version of the coordinates.
-   */
-  static key(x: number, y: number) {
-    return `${x},${y}`;
-  }
-
-  get value() {
-    return this.#data.value;
-  }
-
-  get state() {
-    return this.#data.state;
-  }
-
-  set(x: number, y: number, value: RGB) {
-    const key = PixelDataCRDT.key(x, y);
-    this.#data.set(key, value);
+    this.state = {};
   }
 
   get(x: number, y: number): RGB {
-    const key = PixelDataCRDT.key(x, y);
-
-    const register = this.#data.get(key);
-    return register ?? [255, 255, 255];
+    const key = this.getKey(x, y);
+    return this.state[key]?.color || [255, 255, 255];
   }
 
-  delete(x: number, y: number) {
-    const key = PixelDataCRDT.key(x, y);
-    this.#data.delete(key);
+  set(x: number, y: number, color: RGB): PixelDelta {
+    const key = this.getKey(x, y);
+    const timestamp = Date.now();
+    this.state[key] = { color, timestamp };
+    return { x, y, color, timestamp };
   }
 
-  merge(state: PixelDataCRDT["state"]) {
-    this.#data.merge(state);
-  }
-
-  // prints the pixel data in the console if velue is not given rgb value defaults to [0, 0, 0]
-  printDiff(value: RGB = [0, 0, 0]) {
-    for (const [key, rgb] of Object.entries(this.value)) {
-      if (rgb[0] === value[0] && rgb[1] === value[1] && rgb[2] === value[2]) {
-        continue;
+  merge(packet: PixelDeltaPacket): PixelDeltaPacket {
+    if (packet.agentId === this.id) return { deltas: [], agentId: this.id };
+    packet.deltas.forEach((delta) => {
+      const key = this.getKey(delta.x, delta.y);
+      const currentPixel = this.state[key];
+      if (!currentPixel || delta.timestamp > currentPixel.timestamp) {
+        this.state[key] = { color: delta.color, timestamp: delta.timestamp };
       }
+    });
+
+    return this.getAllDeltas();
+  }
+
+  // getDeltas returns an array of PixelDelta objects of the current state
+  getAllDeltas(): PixelDeltaPacket {
+    const deltas = Object.keys(this.state).map((key) => {
       const [x, y] = key.split(",").map(Number);
-      console.log(`id: ${this.id} (${x}, ${y}): ${rgb}`);
-    }
-
-    console.log("============================");
+      const { color, timestamp } = this.state[key];
+      return { x, y, color, timestamp, agentId: this.id };
+    });
+    return { deltas, agentId: this.id };
   }
 
-  checkDiff(value: RGB = [255, 255, 255]): boolean {
-    for (const [, rgb] of Object.entries(this.value)) {
-      if (rgb[0] === value[0] && rgb[1] === value[1] && rgb[2] === value[2]) {
-        continue;
-      }
-      return true;
-    }
-    return false;
+  // TODO: add a methot that checks current version of the state and returns the deltas that are not in the current state
+
+  private getKey(x: number, y: number): string {
+    return `${x},${y}`;
   }
 }
