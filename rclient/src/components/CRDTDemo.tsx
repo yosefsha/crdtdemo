@@ -1,13 +1,19 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { State } from "../crdt/CRDTTypes";
-import { RGB, PixelDataCRDT } from "../crdt/PixelDataCRDT";
+import {
+  RGB,
+  PixelDataCRDT,
+  PixelDelta,
+  PixelDeltaPacket,
+} from "../crdt/PixelDataCRDT";
 import CanvasEditor from "./CanvasEditor";
 import css from "../styles/CRDTDemo.module.css";
+import config from "../config";
 
 const CRDTDemo = () => {
   const width = 200;
   const height = 200;
-  const [sharedState, setSharedState] = useState<State<RGB>>({});
+  const [sharedState, setSharedState] = useState(0);
   const [color, setColor] = useState<RGB>([0, 0, 0]); // Default color
   const pixelData1 = useMemo(() => new PixelDataCRDT("pixelData1"), []); // Created only once
   const pixelData2 = useMemo(() => new PixelDataCRDT("pixelData2"), []);
@@ -22,9 +28,40 @@ const CRDTDemo = () => {
   //   }
 
   ////
-  const handleStateChange = (state: State<RGB>) => {
-    console.log("CRDTDemo: handleStateChange: set shared state: ", state);
-    setSharedState(state);
+  // const handleStateChange = (state: State<RGB>) => {
+  //   console.log("CRDTDemo: handleStateChange: set shared state: ", state);
+  //   setSharedState(state);
+  // };
+  const handleStateChange = async (deltaPacket: PixelDeltaPacket) => {
+    console.log(
+      `CRDTDemo: handleStateChange: will send ${deltaPacket.deltas.length} deltas of agent ${deltaPacket.agentId} to server `
+    );
+
+    try {
+      const response = await fetch(`${config.apiDomain}/api/sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ deltas: deltaPacket }),
+      });
+
+      if (response.ok) {
+        const responseData = await response.json();
+        const serverDeltas = responseData.deltas as PixelDeltaPacket;
+        console.log(
+          `CRDTDemo: handleStateChange: server deltas count: `,
+          serverDeltas.deltas.length
+        );
+        pixelData2.merge(serverDeltas);
+        pixelData1.merge(serverDeltas);
+        setSharedState((prev) => prev + 1);
+      } else {
+        console.error("Failed to sync with server");
+      }
+    } catch (error) {
+      console.error("Error syncing with server:", error);
+    }
   };
 
   /** Extracts the RGB values from a hex color string. */

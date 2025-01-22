@@ -57,9 +57,9 @@ export class PixelDataCRDT {
         newDeltas.push(delta);
       }
     });
+    this.history.push(...newDeltas);
     console.log("newDeltas lenght: ", newDeltas.length);
     console.log("newDeltas", newDeltas);
-    this.history.push(...newDeltas);
     return { deltas: newDeltas, agentId: this.id };
   }
 
