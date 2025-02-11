@@ -27,14 +27,9 @@ const CRDTDemo = () => {
   //     pixelData2.set(i, i, [0, 0, 0]); // Set the line color to black
   //   }
 
-  ////
-  // const handleStateChange = (state: State<RGB>) => {
-  //   console.log("CRDTDemo: handleStateChange: set shared state: ", state);
-  //   setSharedState(state);
-  // };
   const handleStateChange = async (deltaPacket: PixelDeltaPacket) => {
     console.log(
-      `CRDTDemo: handleStateChange: will send ${deltaPacket.deltas.length} deltas of agent ${deltaPacket.agentId} to server `
+      `CRDTDemo: handleStateChange: will send ${deltaPacket.deltas.length} deltas of agent ${deltaPacket.agentId} to ${config.apiDomain}/api/sync `
     );
 
     try {
