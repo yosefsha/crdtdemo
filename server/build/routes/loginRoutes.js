@@ -60,16 +60,15 @@ router.post("/login", (req, res) => {
 router.get("/logout", (req, res) => {
     if (req.session && req.session.loggedIn) {
         req.session.loggedIn = false;
-        req.session = undefined;
-        res.redirect("/");
-        // req.session.destroy(err => {
-        //     if (err) {
-        //         console.log(err);
-        //     } else {
-        //         console.log('logged out');
-        //         res.redirect('/');
-        //     }
-        // });
+        req.session.destroy((err) => {
+            if (err) {
+                console.log(err);
+            }
+            else {
+                console.log("logged out");
+                res.redirect("/");
+            }
+        });
     }
 });
 router.get("/restricted", requireAuth, (req, res) => {

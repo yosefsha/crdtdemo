@@ -12,6 +12,7 @@ router.get("/sync", (req: RequestWithBody, res: Response) => {
 
 router.post("/sync", (req: RequestWithBody, res: Response) => {
   //check if request has a body
+  console.log("req.body: ", req.body);
   if (!req.body) {
     res.status(422).send("You must provide a delta packet");
     return;

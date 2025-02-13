@@ -6,12 +6,12 @@ import bodyParser from "body-parser";
 import cookieSession from "cookie-session";
 // import cookieSession from 'express-session';
 const port = process.env.PORT || 3001;
-
+const origin = process.env.CLIENT_ORIGIN || "http://localhost";
 const app = express();
 
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: origin,
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
     optionsSuccessStatus: 204,

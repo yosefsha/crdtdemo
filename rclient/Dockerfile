@@ -21,6 +21,9 @@ COPY package.json package-lock.json ./
 # Install the dependencies
 RUN npm install
 
+#env variables
+ENV REACT_APP_API_DOMAIN=http://localhost:5001
+
 # Copy the rest of the files
 COPY . .
 
@@ -32,7 +35,6 @@ FROM nginx:1.21.3
 
 # Copy the build directory to the nginx html directory
 COPY --from=build /app/build /usr/share/nginx/html
-
 # Expose port 80
 EXPOSE 80
 

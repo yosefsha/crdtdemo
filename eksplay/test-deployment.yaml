@@ -1,0 +1,35 @@
+#this is a k8s demo deployment file
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ks-demo-deployment
+  labels:
+    app: ks-demo
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ks-demo
+  minReadySeconds: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: ks-demo
+    spec:
+      containers:
+        - name: ks-demo-container
+          image: nginx:1.14.2
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"

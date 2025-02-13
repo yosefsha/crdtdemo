@@ -60,16 +60,14 @@ router.post("/login", (req: RequestWithBody, res: Response) => {
 router.get("/logout", (req: RequestWithBody, res: Response) => {
   if (req.session && req.session.loggedIn) {
     req.session.loggedIn = false;
-    req.session = undefined;
-    res.redirect("/");
-    // req.session.destroy(err => {
-    //     if (err) {
-    //         console.log(err);
-    //     } else {
-    //         console.log('logged out');
-    //         res.redirect('/');
-    //     }
-    // });
+    req.session.destroy((err) => {
+      if (err) {
+        console.log(err);
+      } else {
+        console.log("logged out");
+        res.redirect("/");
+      }
+    });
   }
 });
 

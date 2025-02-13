@@ -1,0 +1,12 @@
+# this is a demo load balancer service file
+apiVersion: v1
+kind: Service
+metadata:
+  name: ks-demo-service
+spec:
+  selector:
+    app: ks-demo
+  ports:
+    - protocol: TCP
+      port: 80
+  type: ClusterIP

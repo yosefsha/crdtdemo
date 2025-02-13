@@ -1,0 +1,22 @@
+# filepath: /Users/yosefshachnovsky/dev/crdtdemo/eksplay/rclient-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rclient-deployment
+  labels:
+    app: react-client
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: react-client
+  template:
+    metadata:
+      labels:
+        app: react-client
+    spec:
+      containers:
+        - name: rclient-container
+          image: your-docker-repo/react-client:latest
+          ports:
+            - containerPort: 80

@@ -4,6 +4,9 @@ import "./index.css";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import App from "./components/App";
 import Root from "./root";
+import config from "./config";
+
+console.log("running react client with config: ", config);
 
 const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement
