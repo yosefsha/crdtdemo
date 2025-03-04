@@ -1,8 +1,8 @@
 import React from "react";
 import { connect } from "react-redux";
-import { Navigate } from "react-router-dom";
 import * as actions from "../actions";
 import requireAuth from "./requireAuth";
+import "../styles/CommentBox.css"; // Import the new CSS file
 
 interface CommentBoxProps {
   auth: boolean;
@@ -25,7 +25,7 @@ class CommentBox extends React.Component<CommentBoxProps> {
 
   render() {
     return (
-      <form onSubmit={this.handleSubmit}>
+      <form onSubmit={this.handleSubmit} className="comment-box">
         <h4>Add a Comment</h4>
         <textarea value={this.state.comment} onChange={this.handleChange} />
         <div>

@@ -6,6 +6,7 @@ import { Routes, Route, Link } from "react-router-dom";
 import "../styles/App.css";
 import CRDTDemo from "./CRDTDemo";
 import * as actions from "../actions";
+import Login from "./Login"; // Import the Login component
 
 interface AppProps {
   auth: boolean;
@@ -18,7 +19,8 @@ class App extends React.Component<AppProps, {}> {
       console.log("Auth state changed:", this.props.auth);
     }
   }
-  renderLginButton() {
+
+  renderLoginButton() {
     const buttonText = this.props.auth ? "Logout" : "Login";
     return (
       <button
@@ -26,19 +28,25 @@ class App extends React.Component<AppProps, {}> {
           console.log("login button clicked");
           this.props.setAuth(!this.props.auth);
         }}
+        className="login-button"
       >
         {buttonText}
       </button>
     );
   }
+
   renderHeader() {
+    const loginText = this.props.auth ? "Logout" : "Login";
+
     return (
       <div>
-        <h1>React App</h1>
         <nav>
           <ul>
             <li>
               <Link to="/">Home</Link>
+            </li>
+            <li>
+              <Link to="/login">{loginText}</Link>
             </li>
             <li>
               <Link to="/comment">Comment</Link>
@@ -46,9 +54,9 @@ class App extends React.Component<AppProps, {}> {
             <li>
               <Link to="/crdtdemo">CRDT</Link>
             </li>
-            <li>{this.renderLginButton()}</li>
           </ul>
         </nav>
+        {/* <div className="login-container">{this.renderLoginButton()}</div> */}
       </div>
     );
   }
@@ -57,11 +65,15 @@ class App extends React.Component<AppProps, {}> {
     return (
       <div>
         {this.renderHeader()}
-        <Routes>
-          <Route path="/" element={<CommentsList />} />
-          <Route path="/comment" element={<CommentBox />} />
-          <Route path="/crdtdemo" element={<CRDTDemo />} />
-        </Routes>
+        <div className="main-content">
+          <Routes>
+            <Route path="/" element={<CommentsList />} />
+            <Route path="/comment" element={<CommentBox />} />
+            <Route path="/crdtdemo" element={<CRDTDemo />} />
+            <Route path="/login" element={<Login />} />{" "}
+            {/* Add the login route */}
+          </Routes>
+        </div>
       </div>
     );
   }

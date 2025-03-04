@@ -10,7 +10,7 @@ const withAuth = (ChildComponent: React.ComponentType<any>) => {
   class WithAuth extends Component<WithAuthProps> {
     render() {
       if (!this.props.auth) {
-        return <Navigate to="/" />;
+        return <Navigate to="/login" />;
       }
       return <ChildComponent {...this.props} />;
     }

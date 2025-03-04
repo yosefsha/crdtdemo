@@ -8,3 +8,20 @@
   display: flex;
   gap: 1rem;
 }
+/* controll should be centered 
+and wide as the canvases
+*/
+.controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+}
+
+.input {
+  width: 15%;
+  max-width: 300px;
+  min-width: 50px;
+  margin-bottom: 1rem;
+}

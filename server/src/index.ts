@@ -4,33 +4,48 @@ import { router as crdtRouter } from "./routes/crdtRoutes";
 import cors from "cors";
 import bodyParser from "body-parser";
 import cookieSession from "cookie-session";
-// import cookieSession from 'express-session';
-const port = process.env.PORT || 3001;
-const origin = process.env.CLIENT_ORIGIN || "http://localhost";
+
+const port = process.env.PORT || 4000; // Use the environment PORT or default to 4000
+const origin1 = process.env.CLIENT_ORIGIN || "http://localhost:3000"; // For local dev
+const origins = [origin1, "http://localhost"]; // Allow both local and configured origins
+
 const app = express();
 
+// Enable CORS with dynamic origins based on environment
 app.use(
   cors({
-    origin: origin,
+    origin: origins,
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
     optionsSuccessStatus: 204,
   })
 );
+
 // Use body-parser middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
 // Use cookie-session middleware
 app.use(
   cookieSession({
     keys: ["asdf"],
     maxAge: 24 * 60 * 60 * 1000,
-    secure: false,
+    secure: false, // If using HTTPS, set this to true
     name: "session",
   })
 );
-// use the router
+
+// Use the router for login and API
 app.use(loginRouter);
 app.use("/api", crdtRouter);
+// Health check route
+app.get("/health", (req, res) => {
+  console.log("Health check endpoint hit");
+  res.status(200).send("Health check passed");
+});
 
-app.listen(port, () => console.log(`Server is listening on ${port}!`));
+// Start the server on the configured port
+app.listen(port, () => {
+  console.log(`Server is listening on ${port}!`);
+  console.log(`Allowed origins: ${origins}`);
+});

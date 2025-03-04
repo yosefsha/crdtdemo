@@ -21,9 +21,6 @@ COPY package.json package-lock.json ./
 # Install the dependencies
 RUN npm install
 
-#env variables
-ENV REACT_APP_API_DOMAIN=http://localhost:5001
-
 # Copy the rest of the files
 COPY . .
 
@@ -31,12 +28,18 @@ COPY . .
 RUN npm run build
 
 # Use the nginx image as the base image
-FROM nginx:1.21.3
+FROM nginx:alpine
 
+WORKDIR /usr/share/nginx/html
 # Copy the build directory to the nginx html directory
-COPY --from=build /app/build /usr/share/nginx/html
+COPY --from=build /app/build .
+
+COPY env.sh /docker-entrypoint.d/env.sh
 # Expose port 80
 EXPOSE 80
+
+ENV PORT=80
+ENV REACT_APP_API_URL=https://gct3tpdkbe.us-east-1.awsapprunner.com/
 
 # Start the nginx server
 CMD ["nginx", "-g", "daemon off;"]

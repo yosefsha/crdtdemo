@@ -97,7 +97,9 @@ const CRDTDemo = () => {
           sharedState={sharedState}
         />
       </div>
-      <input type="color" onChange={handleColorChange} />
+      <div className={css.controls}>
+        <input type="color" onChange={handleColorChange} />
+      </div>
     </div>
   );
 };

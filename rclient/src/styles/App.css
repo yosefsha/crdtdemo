@@ -36,3 +36,66 @@
     transform: rotate(360deg);
   }
 }
+
+/* General styles */
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f4f4f4;
+}
+
+h1 {
+  color: #040404;
+}
+
+/* Navigation bar styles */
+nav {
+  background-color: #5d617d;
+  padding: 1rem;
+}
+
+nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: space-around;
+}
+
+nav ul li {
+  margin: 0;
+}
+
+nav ul li a {
+  color: white;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  display: block;
+  transition: background-color 0.3s ease;
+}
+
+nav ul li a:hover {
+  background-color: #555;
+}
+
+nav ul li button {
+  background-color: #333;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+nav ul li button:hover {
+  background-color: #655151;
+}
+
+/* Center the main content area */
+.main-content {
+  display: flex;
+  justify-content: center;
+  align-items: top;
+  min-height: 80vh; /* Adjust as needed */
+}

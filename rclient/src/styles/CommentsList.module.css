@@ -1,0 +1,6 @@
+/* the comments list should be alighned left with some space from left side*/
+
+.comments {
+  display: flex;
+  gap: 1rem;
+}

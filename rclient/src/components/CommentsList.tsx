@@ -1,5 +1,6 @@
 import React from "react";
 import { connect } from "react-redux";
+import css from "../styles/CommentsList.module.css";
 
 //export default function CommentsList() {
 //  return <div>CommentsList</div>;
@@ -11,7 +12,7 @@ interface CommentsListProps {
 class CommentsList extends React.Component<CommentsListProps> {
   render() {
     return (
-      <div>
+      <div className={css.comments}>
         <h3>Comments list:</h3>
         <ul>
           {this.props.comments.map((comment: string, index: number) => {

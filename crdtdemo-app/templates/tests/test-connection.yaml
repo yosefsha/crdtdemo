@@ -1,0 +1,28 @@
+# Specifies the API version for the resource
+apiVersion: v1
+
+# Specifies the type of resource, which is a Pod in this case
+kind: Pod
+
+# Metadata about the resource
+metadata:
+  # Name of the Pod, using a template to include the full name of the chart
+  name: "{{ include "crdtdemo-app.fullname" . }}-test-connection"
+  # Labels for the Pod, using a template to include common labels
+  labels:
+    {{- include "crdtdemo-app.labels" . | nindent 4 }}
+  # Annotations for the Pod, indicating that this is a Helm test hook
+  annotations:
+    "helm.sh/hook": test
+
+# Specification for the Pod
+spec:
+  # List of containers to run in the Pod
+  containers:
+    - name: wget # Name of the container
+      image: busybox # Docker image to use for the container
+      command: ['wget'] # Command to run in the container
+      # Arguments for the command, using a template to include the full name of the chart and the service port
+      args: ['{{ include "crdtdemo-app.fullname" . }}:{{ .Values.service.port }}']
+  # Restart policy for the Pod, set to Never to ensure the Pod does not restart
+  restartPolicy: Never
