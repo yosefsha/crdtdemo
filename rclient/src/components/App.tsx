@@ -42,7 +42,7 @@ class App extends React.Component<AppProps, {}> {
       <div>
         <nav>
           <ul>
-            <li>
+            {/* <li>
               <Link to="/">Home</Link>
             </li>
             <li>
@@ -50,13 +50,12 @@ class App extends React.Component<AppProps, {}> {
             </li>
             <li>
               <Link to="/comment">Comment</Link>
-            </li>
+            </li> */}
             <li>
               <Link to="/crdtdemo">CRDT</Link>
             </li>
           </ul>
         </nav>
-        {/* <div className="login-container">{this.renderLoginButton()}</div> */}
       </div>
     );
   }
@@ -67,10 +66,10 @@ class App extends React.Component<AppProps, {}> {
         {this.renderHeader()}
         <div className="main-content">
           <Routes>
-            <Route path="/" element={<CommentsList />} />
-            <Route path="/comment" element={<CommentBox />} />
+            <Route path="/" element={<CRDTDemo />} />
+            {/* <Route path="/comment" element={<CommentBox />} /> */}
             <Route path="/crdtdemo" element={<CRDTDemo />} />
-            <Route path="/login" element={<Login />} />{" "}
+            {/* <Route path="/login" element={<Login />} />{" "} */}
             {/* Add the login route */}
           </Routes>
         </div>

@@ -2,9 +2,6 @@ import React from "react";
 import { connect } from "react-redux";
 import css from "../styles/CommentsList.module.css";
 
-//export default function CommentsList() {
-//  return <div>CommentsList</div>;
-
 interface CommentsListProps {
   comments: string[];
 }

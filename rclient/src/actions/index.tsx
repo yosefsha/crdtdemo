@@ -33,3 +33,56 @@ export function setAuth(inLoggedIn: boolean) {
     payload: inLoggedIn,
   };
 }
+
+export const login =
+  (email: string, password: string) => async (dispatch: any) => {
+    try {
+      const response = await fetch("/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Login failed");
+      }
+
+      const data = await response.json();
+      localStorage.setItem("token", data.token);
+      dispatch(setAuth(true));
+    } catch (error) {
+      console.error("Login failed:", error);
+      dispatch(setAuth(false));
+    }
+  };
+
+export const signup =
+  (name: string, email: string, password: string) => async (dispatch: any) => {
+    try {
+      const response = await fetch("/auth/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Sign-up failed");
+      }
+
+      const data = await response.json();
+      localStorage.setItem("token", data.token);
+      dispatch(setAuth(true));
+    } catch (error) {
+      console.error("Sign-up failed:", error);
+      dispatch(setAuth(false));
+    }
+  };
+
+export const logout = () => {
+  localStorage.removeItem("token");
+  return setAuth(false);
+};

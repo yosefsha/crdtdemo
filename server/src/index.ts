@@ -5,7 +5,7 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import cookieSession from "cookie-session";
 
-const port = process.env.PORT || 4000; // Use the environment PORT or default to 4000
+const port = process.env.PORT || 3333; // Use the environment PORT or default to 3000
 const origin1 = process.env.CLIENT_ORIGIN || "http://localhost:3000"; // For local dev
 const origins = [origin1, "http://localhost"]; // Allow both local and configured origins
 
@@ -36,7 +36,7 @@ app.use(
 );
 
 // Use the router for login and API
-app.use(loginRouter);
+app.use("/auth", loginRouter);
 app.use("/api", crdtRouter);
 // Health check route
 app.get("/health", (req, res) => {

@@ -3,8 +3,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.router = void 0;
 exports.requireAuth = requireAuth;
 const express_1 = require("express");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const JWT_SECRET = "secret_key";
 const router = (0, express_1.Router)();
 exports.router = router;
+const users = []; // store users in memory for demo purposes
 function requireAuth(req, res, next) {
     if (req.session && req.session.loggedIn) {
         next();
@@ -44,6 +48,7 @@ router.get("/", (req, res) => {
     }
 });
 router.post("/login", (req, res) => {
+    console.log("login request: ", req.body);
     const { email, password } = req.body;
     if (email && password && email === "hi@hi.com" && password === "admin") {
         // mark this person as logged in
@@ -55,6 +60,20 @@ router.post("/login", (req, res) => {
     }
     else {
         res.send("Invalid username or password");
+    }
+});
+router.post("/signup", (req, res) => {
+    console.log("signup request: ", req.body);
+    const { name, email, password } = req.body;
+    const userExists = users.find((u) => u.email === email);
+    if (userExists) {
+        res.status(409).send("User already exists");
+    }
+    else {
+        const hashedPassword = bcrypt.hashSync(password, 8);
+        users.push({ name, email, password: hashedPassword });
+        const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: "1h" });
+        res.status(201).send({ token });
     }
 });
 router.get("/logout", (req, res) => {

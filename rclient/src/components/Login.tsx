@@ -1,38 +1,85 @@
-import React from "react";
+import React, { useState } from "react";
 import { connect } from "react-redux";
-import * as actions from "../actions";
+import { login, logout, signup } from "../actions";
 
 interface LoginProps {
   auth: boolean;
-  setAuth: (auth: boolean) => void;
+  login: (email: string, password: string) => void;
+  signup: (name: string, email: string, password: string) => void;
+  logout: () => void;
 }
 
-class Login extends React.Component<LoginProps> {
-  handleLogin = () => {
-    this.props.setAuth(true);
+const Login: React.FC<LoginProps> = ({ auth, login, signup, logout }) => {
+  const isLoggedIn = auth;
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isSignUp) {
+      signup(name, email, password);
+    } else {
+      login(email, password);
+    }
   };
 
-  handleLogout = () => {
-    this.props.setAuth(false);
-  };
-
-  render() {
-    const loginLogoutText = this.props.auth ? "Logout" : "Login";
-    return (
-      <div>
-        <h2>{loginLogoutText}</h2>
-        {this.props.auth ? (
-          <button onClick={this.handleLogout}>Logout</button>
-        ) : (
-          <button onClick={this.handleLogin}>Login</button>
+  return (
+    <div>
+      <h2>{isSignUp ? "Sign Up" : "Login"}</h2>
+      <form onSubmit={handleSubmit}>
+        {isSignUp && (
+          <div>
+            <label>Name:</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
         )}
-      </div>
-    );
-  }
-}
+        <div>
+          <label>Email:</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <label>Password:</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
+        <button type="submit">{isSignUp ? "Sign Up" : "Login"}</button>
+      </form>
+      <button onClick={() => setIsSignUp(!isSignUp)}>
+        {isSignUp
+          ? "Already have an account? Login"
+          : "Don't have an account? Sign Up"}
+      </button>
+    </div>
+  );
+
+  //   else {
+  //     return (
+  //       <div>
+  //         <h2>Logout</h2>
+  //         <button onClick={() => logout()}>Logout</button>
+  //       </div>
+  //     );
+  //   }
+};
 
 function mapStateToProps(state: { auth: boolean }) {
   return { auth: state.auth };
 }
 
-export default connect(mapStateToProps, actions)(Login);
+export default connect(mapStateToProps, { login, signup, logout })(Login);

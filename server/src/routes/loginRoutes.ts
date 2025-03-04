@@ -1,8 +1,17 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { RequestWithBody } from "./interfaces";
-
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const JWT_SECRET = "secret_key";
 const router = Router();
 
+interface User {
+  name: string;
+  email: string;
+  password: string;
+}
+
+const users: User[] = []; // store users in memory for demo purposes
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (req.session && req.session.loggedIn) {
     next();
@@ -44,6 +53,7 @@ router.get("/", (req: RequestWithBody, res: Response) => {
 });
 
 router.post("/login", (req: RequestWithBody, res: Response) => {
+  console.log("login request: ", req.body);
   const { email, password } = req.body;
   if (email && password && email === "hi@hi.com" && password === "admin") {
     // mark this person as logged in
@@ -54,6 +64,20 @@ router.post("/login", (req: RequestWithBody, res: Response) => {
     res.redirect("/");
   } else {
     res.send("Invalid username or password");
+  }
+});
+
+router.post("/signup", (req: RequestWithBody, res: Response) => {
+  console.log("signup request: ", req.body);
+  const { name, email, password } = req.body;
+  const userExists = users.find((u) => u.email === email);
+  if (userExists) {
+    res.status(409).send("User already exists");
+  } else {
+    const hashedPassword = bcrypt.hashSync(password, 8);
+    users.push({ name, email, password: hashedPassword });
+    const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: "1h" });
+    res.status(201).send({ token });
   }
 });
 

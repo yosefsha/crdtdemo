@@ -18,15 +18,6 @@ const CRDTDemo = () => {
   const pixelData1 = useMemo(() => new PixelDataCRDT("pixelData1"), []); // Created only once
   const pixelData2 = useMemo(() => new PixelDataCRDT("pixelData2"), []);
 
-  //   useEffect(() => {
-  //     console.log("Parent Component Rendered - pixelData:", pixelData1);
-  //   }, [pixelData1]);
-
-  // Draw a diagonal line from top-left to bottom-right
-  //   for (let i = 0; i < Math.min(width, height); i++) {
-  //     pixelData2.set(i, i, [0, 0, 0]); // Set the line color to black
-  //   }
-
   const handleStateChange = async (deltaPacket: PixelDeltaPacket) => {
     console.log(
       `CRDTDemo: handleStateChange: will send ${deltaPacket.deltas.length} deltas of agent ${deltaPacket.agentId} to ${config.apiDomain}/api/sync `
