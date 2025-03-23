@@ -1,0 +1,13 @@
+# this is a persistent volume definition
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: my-local-pv
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: hostpath
+  hostPath:
+    path: /Users/yosefshachnovsky/dev/crdtdemo/k8s/volpath

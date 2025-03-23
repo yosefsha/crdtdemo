@@ -1,0 +1,10 @@
+# this is a basic exampel of a pod definition file lounching a ubuntu container
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ubuntu-pod
+spec:
+  containers:
+    - name: ubuntu-pods
+      image: ubuntu
+      command: ["sleep", "3600"]

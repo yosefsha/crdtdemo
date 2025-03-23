@@ -1,0 +1,43 @@
+# this is a deployment file for the rclient pod
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rclient-deployment
+  labels:
+    app: rclient
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rclient
+  template:
+    metadata:
+      labels:
+        app: rclient
+    spec:
+      containers:
+        - name: rclient-container
+          image: 963352896991.dkr.ecr.us-east-1.amazonaws.com/crdtdemo/react:latest #this is the image for the rclient pod
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+
+---
+# this is a service for the rclient pod
+apiVersion: v1
+kind: Service
+metadata:
+  name: rclient-service
+spec:
+  selector:
+    app: rclient
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
