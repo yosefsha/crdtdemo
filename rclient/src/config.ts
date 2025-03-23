@@ -20,7 +20,7 @@ function getDefaultApiDomain(env: string): string {
     case "dev":
       return "https://api.yossidemo.click";
     case "local":
-      return "http://localhost:5001";
+      return "http://localhost:4000";
     default:
       return "https://api.yossidemo.click";
   }

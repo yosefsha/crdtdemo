@@ -16,6 +16,7 @@
     "redux-promise": "^0.6.0"
   },
   "scripts": {
+    "local": "REACT_APP_MYENV=local react-scripts start",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test --watchAll=false",

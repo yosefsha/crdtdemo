@@ -1,13 +1,6 @@
+import { LWWMap } from "./CRDTTypes";
+
 export type RGB = [number, number, number];
-
-interface Pixel {
-  color: RGB;
-  timestamp: number;
-}
-
-interface State {
-  [key: string]: Pixel;
-}
 
 export interface PixelDeltaPacket {
   deltas: PixelDelta[];
@@ -17,31 +10,36 @@ export interface PixelDeltaPacket {
 export interface PixelDelta {
   x: number;
   y: number;
-  color: RGB;
+  color: RGB | null;
   timestamp: number;
 }
 
 export class PixelDataCRDT {
-  private state: State;
+  private state: LWWMap<RGB>;
   private id: string;
   private history: PixelDelta[] = [];
+
   constructor(id: string) {
     this.id = id;
-    this.state = {};
+    this.state = new LWWMap<RGB>(id, {});
   }
 
   get(x: number, y: number): RGB {
     const key = this.getKey(x, y);
-    return this.state[key]?.color || [255, 255, 255];
+    return this.state.get(key) || [255, 255, 255];
   }
 
-  set(x: number, y: number, color: RGB): PixelDelta {
+  set(x: number, y: number, color: RGB): PixelDelta | null {
     const key = this.getKey(x, y);
+    const currentPixel = this.state.get(key);
+    if (currentPixel && currentPixel.toString() === color.toString()) {
+      return null;
+    }
     const timestamp = Date.now();
-    this.state[key] = { color, timestamp };
+
+    this.state.set(key, color);
     const delta: PixelDelta = { x, y, color, timestamp };
     this.history.push(delta);
-
     return delta;
   }
 
@@ -51,9 +49,9 @@ export class PixelDataCRDT {
 
     packet.deltas.forEach((delta) => {
       const key = this.getKey(delta.x, delta.y);
-      const currentPixel = this.state[key];
-      if (!currentPixel || delta.timestamp > currentPixel.timestamp) {
-        this.state[key] = { color: delta.color, timestamp: delta.timestamp };
+
+      // Merge using LWWMap (it ensures timestamp-based resolution)
+      if (this.state.set(key, delta.color)) {
         newDeltas.push(delta);
       }
     });
@@ -65,11 +63,32 @@ export class PixelDataCRDT {
 
   // getDeltas returns an array of PixelDelta objects of the current state
   getAllDeltas(): PixelDeltaPacket {
-    const deltas = Object.keys(this.state).map((key) => {
+    // const deltas = Object.keys(this.state)
+    //   .map((key) => {
+    //     const [x, y] = key.split(",").map(Number);
+    //     const color = this.state.get(key);
+    //     if (color) {
+    //       return {
+    //         x,
+    //         y,
+    //         color,
+    //         timestamp: p.timestamp,
+    //         agentId: this.id,
+    //       };
+    //     } else {
+    //       return null;
+    //     }
+    //   })
+    //   .filter((p) => p !== null) as PixelDelta[];
+    // return { deltas, agentId: this.id };
+    const deltas: PixelDelta[] = [];
+    for (const [key, register] of Object.entries(this.state.state)) {
       const [x, y] = key.split(",").map(Number);
-      const { color, timestamp } = this.state[key];
-      return { x, y, color, timestamp, agentId: this.id };
-    });
+      const [, timestamp, color] = register; // Extract timestamp from LWWRegister
+
+      deltas.push({ x, y, color, timestamp });
+    }
+
     return { deltas, agentId: this.id };
   }
 

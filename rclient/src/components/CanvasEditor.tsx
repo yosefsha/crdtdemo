@@ -134,7 +134,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
 
     // Update pixel data
     const delta = pixelData.set(x, y, color);
-
+    if (!delta) return;
     deltasRef.current.push(delta);
     drawOnCanvas(x, y, color, ctx);
   };
