@@ -123,3 +123,19 @@ export type Value<T> = {
   [key: string]: T;
 };
 // State is a record of keys to the full state of the corresponding register
+
+export interface IDelta<T> {
+  timestamp: number;
+  value: T | null;
+}
+
+export interface ICRDT<T, D extends IDelta<T>> {
+  get(key: string): T | null;
+  set(key: string, value: T): D | null;
+  merge(packet: { deltas: D[]; agentId: string }): {
+    deltas: D[];
+    agentId: string;
+  };
+  getAllDeltas(): { deltas: D[]; agentId: string };
+  getDeltaSince(timestamp: number): { deltas: D[]; agentId: string };
+}

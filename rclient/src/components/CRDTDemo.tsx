@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef } from "react";
 import { RGB, PixelDataCRDT, PixelDeltaPacket } from "../crdt/PixelDataCRDT";
 import CanvasEditor from "./CanvasEditor";
 import css from "../styles/CRDTDemo.module.css";
@@ -8,18 +8,11 @@ const CRDTDemo = () => {
   const width = 200;
   const height = 200;
   const [sharedState, setSharedState] = useState(0);
-  const [color, setColor] = useState<RGB>([0, 0, 0]); // Default color
+  const [color, setColor] = useState<RGB | null>([0, 0, 0]); // Default color
+  const [isEraser, setIsEraser] = useState(false); // Eraser mode
+  const currentColorRef = useRef<RGB | null>(color);
   const pixelData1 = useMemo(() => new PixelDataCRDT("pixelData1"), []); // Created only once
   const pixelData2 = useMemo(() => new PixelDataCRDT("pixelData2"), []);
-
-  //   useEffect(() => {
-  //     console.log("Parent Component Rendered - pixelData:", pixelData1);
-  //   }, [pixelData1]);
-
-  // Draw a diagonal line from top-left to bottom-right
-  //   for (let i = 0; i < Math.min(width, height); i++) {
-  //     pixelData2.set(i, i, [0, 0, 0]); // Set the line color to black
-  //   }
 
   const handleStateChange = async (deltaPacket: PixelDeltaPacket) => {
     console.log(
@@ -53,6 +46,21 @@ const CRDTDemo = () => {
     }
   };
 
+  /** Handles eraser mode change */
+  const handleEraserChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setIsEraser(event.target.checked);
+    console.log(
+      "CRDTDemo: handleEraserChange: isEraser: ",
+      event.target.checked
+    );
+    if (event.target.checked) {
+      setColor(null); // Set color to white when eraser is enabled
+    } else {
+      // Set color back to previous color
+      setColor(currentColorRef.current);
+    }
+  };
+
   /** Extracts the RGB values from a hex color string. */
   function parseHexToRGB(hexColor: string): RGB | null {
     // Remove the leading '#' and extract hex pairs
@@ -62,10 +70,13 @@ const CRDTDemo = () => {
 
   /** Handles color change from the input */
   const handleColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const rgb = parseHexToRGB(event.target.value);
-    if (rgb) {
-      console.log("CRDTDemo: handleColorChange: set color: ", rgb);
-      setColor(rgb);
+    currentColorRef.current = parseHexToRGB(event.target.value);
+    if (currentColorRef.current) {
+      console.log(
+        "CRDTDemo: handleColorChange: set color: ",
+        currentColorRef.current
+      );
+      setColor(currentColorRef.current);
     }
   };
 
@@ -80,6 +91,7 @@ const CRDTDemo = () => {
           pixelData={pixelData1}
           onStateChange={handleStateChange}
           sharedState={sharedState}
+          cursor={isEraser ? "crosshair" : "default"} // Change cursor based on isEraser
         />
         <CanvasEditor
           id="bob"
@@ -89,10 +101,19 @@ const CRDTDemo = () => {
           pixelData={pixelData2}
           onStateChange={handleStateChange}
           sharedState={sharedState}
+          cursor={isEraser ? "crosshair" : "default"} // Change cursor based on isEraser
         />
       </div>
       <div className={css.controls}>
         <input type="color" onChange={handleColorChange} />
+        <label>
+          <input
+            type="checkbox"
+            checked={isEraser}
+            onChange={handleEraserChange}
+          />
+          Eraser
+        </label>
       </div>
     </div>
   );

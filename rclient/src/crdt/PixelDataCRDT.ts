@@ -1,4 +1,4 @@
-import { LWWMap } from "./CRDTTypes";
+import { LWWMap, ICRDT, IDelta } from "./CRDTTypes";
 
 export type RGB = [number, number, number];
 
@@ -7,14 +7,12 @@ export interface PixelDeltaPacket {
   agentId: string;
 }
 
-export interface PixelDelta {
+export interface PixelDelta extends IDelta<RGB | null> {
   x: number;
   y: number;
-  color: RGB | null;
-  timestamp: number;
 }
 
-export class PixelDataCRDT {
+export class PixelDataCRDT implements ICRDT<RGB, PixelDelta> {
   private state: LWWMap<RGB>;
   private id: string;
   // private history: PixelDelta[] = [];
@@ -24,21 +22,20 @@ export class PixelDataCRDT {
     this.state = new LWWMap<RGB>(id, {});
   }
 
-  get(x: number, y: number): RGB {
-    const key = this.getKey(x, y);
+  get(key: string): RGB {
+    // const key = this.getKey(x, y);
     return this.state.get(key) || [255, 255, 255];
   }
 
-  set(x: number, y: number, color: RGB): PixelDelta | null {
-    const key = this.getKey(x, y);
+  set(key: string, color: RGB | null): PixelDelta | null {
+    const [x, y] = PixelDataCRDT.getXYfromKey(key);
     const currentPixel = this.state.get(key);
-    if (currentPixel && currentPixel.toString() === color.toString()) {
+    if (currentPixel && currentPixel.toString() === color?.toString()) {
       return null;
     }
     const timestamp = Date.now();
-
     this.state.set(key, color);
-    const delta: PixelDelta = { x, y, color, timestamp };
+    const delta: PixelDelta = { x, y, value: color, timestamp };
     // this.history.push(delta);
     return delta;
   }
@@ -48,10 +45,10 @@ export class PixelDataCRDT {
     const newDeltas: PixelDelta[] = [];
 
     packet.deltas.forEach((delta) => {
-      const key = this.getKey(delta.x, delta.y);
+      const key = PixelDataCRDT.getKey(delta.x, delta.y);
 
       // Merge using LWWMap (it ensures timestamp-based resolution)
-      if (this.state.set(key, delta.color)) {
+      if (this.state.set(key, delta.value)) {
         newDeltas.push(delta);
       }
     });
@@ -68,7 +65,7 @@ export class PixelDataCRDT {
       const [x, y] = key.split(",").map(Number);
       const [, timestamp, color] = register; // Extract timestamp from LWWRegister
 
-      deltas.push({ x, y, color, timestamp });
+      deltas.push({ x, y, value: color, timestamp });
     }
 
     return { deltas, agentId: this.id };
@@ -83,7 +80,7 @@ export class PixelDataCRDT {
       const [x, y] = key.split(",").map(Number);
       const [, ts, color] = register;
       if (ts > timestamp) {
-        deltas.push({ x, y, color, timestamp: ts });
+        deltas.push({ x, y, value: color, timestamp: ts });
       }
     }
     return { deltas, agentId: this.id };
@@ -91,7 +88,11 @@ export class PixelDataCRDT {
 
   // TODO: add a methot that checks current version of the state and returns the deltas that are not in the current state
 
-  private getKey(x: number, y: number): string {
+  static getKey(x: number, y: number): string {
     return `${x},${y}`;
+  }
+  static getXYfromKey(key: string): [number, number] {
+    const [x, y] = key.split(",").map(Number);
+    return [x, y];
   }
 }
