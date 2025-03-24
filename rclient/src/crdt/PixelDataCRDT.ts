@@ -17,7 +17,7 @@ export interface PixelDelta {
 export class PixelDataCRDT {
   private state: LWWMap<RGB>;
   private id: string;
-  private history: PixelDelta[] = [];
+  // private history: PixelDelta[] = [];
 
   constructor(id: string) {
     this.id = id;
@@ -39,7 +39,7 @@ export class PixelDataCRDT {
 
     this.state.set(key, color);
     const delta: PixelDelta = { x, y, color, timestamp };
-    this.history.push(delta);
+    // this.history.push(delta);
     return delta;
   }
 
@@ -57,30 +57,12 @@ export class PixelDataCRDT {
     });
     console.log("newDeltas lenght: ", newDeltas.length);
     console.log("newDeltas", newDeltas);
-    this.history.push(...newDeltas);
+    // this.history.push(...newDeltas);
     return { deltas: newDeltas, agentId: this.id };
   }
 
   // getDeltas returns an array of PixelDelta objects of the current state
   getAllDeltas(): PixelDeltaPacket {
-    // const deltas = Object.keys(this.state)
-    //   .map((key) => {
-    //     const [x, y] = key.split(",").map(Number);
-    //     const color = this.state.get(key);
-    //     if (color) {
-    //       return {
-    //         x,
-    //         y,
-    //         color,
-    //         timestamp: p.timestamp,
-    //         agentId: this.id,
-    //       };
-    //     } else {
-    //       return null;
-    //     }
-    //   })
-    //   .filter((p) => p !== null) as PixelDelta[];
-    // return { deltas, agentId: this.id };
     const deltas: PixelDelta[] = [];
     for (const [key, register] of Object.entries(this.state.state)) {
       const [x, y] = key.split(",").map(Number);
@@ -89,6 +71,21 @@ export class PixelDataCRDT {
       deltas.push({ x, y, color, timestamp });
     }
 
+    return { deltas, agentId: this.id };
+  }
+
+  /**
+   * Returns deltas that occurred after the given timestamp.
+   */
+  getDeltaSince(timestamp: number): PixelDeltaPacket {
+    const deltas: PixelDelta[] = [];
+    for (const [key, register] of Object.entries(this.state.state)) {
+      const [x, y] = key.split(",").map(Number);
+      const [, ts, color] = register;
+      if (ts > timestamp) {
+        deltas.push({ x, y, color, timestamp: ts });
+      }
+    }
     return { deltas, agentId: this.id };
   }
 

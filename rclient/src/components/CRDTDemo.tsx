@@ -1,11 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { State } from "../crdt/CRDTTypes";
-import {
-  RGB,
-  PixelDataCRDT,
-  PixelDelta,
-  PixelDeltaPacket,
-} from "../crdt/PixelDataCRDT";
+import React, { useMemo, useState } from "react";
+import { RGB, PixelDataCRDT, PixelDeltaPacket } from "../crdt/PixelDataCRDT";
 import CanvasEditor from "./CanvasEditor";
 import css from "../styles/CRDTDemo.module.css";
 import config from "../config";

@@ -17,7 +17,7 @@ export function fetchComments() {
       );
       const data = await response.json();
       dispatch({
-        type: "FETCH_COMMENTS",
+        type: FETCH_COMMENTS,
         payload: data,
       });
     } catch (error) {
