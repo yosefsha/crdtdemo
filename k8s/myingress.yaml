@@ -1,0 +1,26 @@
+# This is the Ingress resource that will route traffic to the correct service based on the host header.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-ingress
+  labels:
+    app: my-ingress
+    # enable cors, https, and force https, and rewrite target, access from internet
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:963352896991:certificate/6c4adc69-fe9a-4f1c-91c6-1a6d98e49f21
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80,"HTTPS": 443}]'
+
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: rclient-service
+                port:
+                  number: 80

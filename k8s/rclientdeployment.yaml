@@ -35,6 +35,7 @@ kind: Service
 metadata:
   name: rclient-service
 spec:
+  type: NodePort
   selector:
     app: rclient
   ports:
