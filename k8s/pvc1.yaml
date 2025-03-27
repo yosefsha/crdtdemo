@@ -1,0 +1,12 @@
+# this is a persistent volume claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-local-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: hostpath

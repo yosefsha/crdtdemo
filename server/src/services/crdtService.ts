@@ -1,5 +1,4 @@
 import { PixelDataCRDT, PixelDeltaPacket } from "../crdt/PixelDataCRDT";
-import { State } from "../crdt/CRDTTypes";
 import { getCurrentDateTimeString } from "./helpers";
 
 class CRDTService {

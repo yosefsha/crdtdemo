@@ -5,15 +5,16 @@ import {
   PixelDelta,
   PixelDeltaPacket,
 } from "../crdt/PixelDataCRDT";
-
+import { RGB } from "../crdt/PixelDataCRDT";
 interface CanvasEditorProps {
   id: string;
   width: number;
   height: number;
   onStateChange: (deltas: PixelDeltaPacket) => void;
-  color: [number, number, number];
+  color: RGB | null;
   pixelData: PixelDataCRDT;
   sharedState: number;
+  cursor: string;
 }
 
 const CanvasEditor: React.FC<CanvasEditorProps> = ({
@@ -24,6 +25,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
   color,
   pixelData,
   sharedState,
+  cursor,
 }) => {
   const deltasRef = useRef<PixelDelta[]>([]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -133,16 +135,16 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     }
 
     // Update pixel data
-    const delta = pixelData.set(x, y, color);
-
+    const delta = pixelData.set(PixelDataCRDT.getKey(x, y), color);
+    if (!delta) return;
     deltasRef.current.push(delta);
-    drawOnCanvas(x, y, color, ctx);
+    drawOnCanvas(x, y, color || [255, 255, 255], ctx);
   };
 
   async function drawOnCanvas(
     x: number,
     y: number,
-    color: [number, number, number],
+    color: RGB,
     ctx: CanvasRenderingContext2D
   ) {
     /** Number of channels per pixel; R, G, B, A */
@@ -153,16 +155,18 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
      * so the full size is the number of pixels times the number of channels per pixel. */
     const buffer = new Uint8ClampedArray(chans);
     // set the pixel color at position (x, y) on canvas to the color
-    buffer[0] = color[0];
-    buffer[1] = color[1];
-    buffer[2] = color[2];
-    buffer[3] = 255; // Alpha channel
-    const imageData = new ImageData(buffer, 1, 1);
-    console.log(
-      `[${getTimestamp()}] CanvasEditor:${id} - draw color: [${color}] at (${x}, ${y})`
-    );
-    // draw the pixel on the canvas
-    ctx.putImageData(imageData, x, y);
+    if (color) {
+      buffer[0] = color[0];
+      buffer[1] = color[1];
+      buffer[2] = color[2];
+      buffer[3] = 255; // Alpha channel
+      const imageData = new ImageData(buffer, 1, 1);
+      console.log(
+        `[${getTimestamp()}] CanvasEditor:${id} - draw color: [${color}] at (${x}, ${y})`
+      );
+      // draw the pixel on the canvas
+      ctx.putImageData(imageData, x, y);
+    }
   }
 
   const handlePointerUp = () => {
@@ -183,7 +187,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const index = (y * width + x) * 4;
-        const [r, g, b] = pixelData.get(x, y);
+        const [r, g, b] = pixelData.get(PixelDataCRDT.getKey(x, y));
         imgData.data[index] = r;
         imgData.data[index + 1] = g;
         imgData.data[index + 2] = b;
@@ -254,6 +258,15 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     drawCanvasFromData(ctx);
   }, [sharedState]);
 
+  useEffect(() => {
+    console.info(
+      `[${getTimestamp()}] CanvasEditor:${id} - useEffect: cursor: ${cursor}`
+    );
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.style.cursor = cursor; // Apply cursor style
+    }
+  }, [cursor]);
   return (
     <canvas
       className={css.canvas}

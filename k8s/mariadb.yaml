@@ -1,0 +1,68 @@
+# this is a statefulset for mariadb
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mariadb-statefulset
+  labels:
+    app: mariadb
+spec:
+  serviceName: mariadb-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mariadb
+  template:
+    metadata:
+      labels:
+        app: mariadb
+    spec:
+      containers:
+        - name: mariadb
+          image: mariadb
+          env:
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: my-mariadb-secret
+                  key: MARIADB_ROOT_PASSWORD
+            - name: MARIADB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: my-mariadb-secret
+                  key: MARIADB_DATABASE
+            - name: MARIADB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: my-mariadb-secret
+                  key: MARIADB_USER
+            - name: MARIADB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: my-mariadb-secret
+                  key: MARIADB_PASSWORD
+          ports:
+            - containerPort: 3306
+          volumeMounts:
+            - name: mariadb-persistent-storage
+              mountPath: /var/lib/mysql
+  volumeClaimTemplates:
+    - metadata:
+        name: mariadb-persistent-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+# this is a service for mariadb
+apiVersion: v1
+kind: Service
+metadata:
+  name: mariadb-service
+spec:
+  selector:
+    app: mariadb
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306

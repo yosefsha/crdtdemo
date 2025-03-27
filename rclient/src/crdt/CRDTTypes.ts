@@ -20,9 +20,11 @@ export class LWWRegister<T> {
     this.state = state;
   }
 
-  set(value: T) {
+  set(value: T): boolean {
     // set the peer ID to the local ID, increment the local timestamp by 1 and set the value
-    this.state = [this.id, this.state[1] + 1, value];
+    if (this.state[2] === value) return false; // Avoid unnecessary updates
+    this.state = [this.id, Date.now(), value];
+    return true;
   }
 
   merge(state: [peer: string, timestamp: number, value: T]) {
@@ -39,14 +41,6 @@ export class LWWRegister<T> {
     this.state = state;
   }
 }
-
-export type Value<T> = {
-  [key: string]: T;
-};
-// State is a record of keys to the full state of the corresponding register
-
-// State is a map of keys to the full state of the corresponding register
-export type State<T> = Record<string, LWWRegister<T | null>["state"]>;
 
 export class LWWMap<T> {
   readonly id: string;
@@ -91,14 +85,17 @@ export class LWWMap<T> {
     return this.#data.get(key)?.value;
   }
 
-  set(key: string, value: T) {
+  set(key: string, value: T | null) {
     // get the register at the given key
-    const register = this.#data.get(key);
+    let register = this.#data.get(key);
 
     // if the register already exists, set the value
-    if (register) register.set(value);
+    if (register) {
+      return register.set(value);
+    }
     // otherwise, instantiate a new `LWWRegister` with the value
-    else this.#data.set(key, new LWWRegister(this.id, [this.id, 1, value]));
+    this.#data.set(key, new LWWRegister(this.id, [this.id, 1, value]));
+    return true;
   }
 
   delete(key: string) {
@@ -117,4 +114,28 @@ export class LWWMap<T> {
       else this.#data.set(key, new LWWRegister(this.id, remote));
     }
   }
+}
+
+// State is a map of keys to the full state of the corresponding register
+export type State<T> = Record<string, LWWRegister<T | null>["state"]>;
+
+export type Value<T> = {
+  [key: string]: T;
+};
+// State is a record of keys to the full state of the corresponding register
+
+export interface IDelta<T> {
+  timestamp: number;
+  value: T | null;
+}
+
+export interface ICRDT<T, D extends IDelta<T>> {
+  get(key: string): T | null;
+  set(key: string, value: T): D | null;
+  merge(packet: { deltas: D[]; agentId: string }): {
+    deltas: D[];
+    agentId: string;
+  };
+  getAllDeltas(): { deltas: D[]; agentId: string };
+  getDeltaSince(timestamp: number): { deltas: D[]; agentId: string };
 }
