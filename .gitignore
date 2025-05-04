@@ -1,4 +1,5 @@
 node_modules/
 build/
 playground/
+secrets/
 iq.tests.ts
