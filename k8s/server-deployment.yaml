@@ -6,7 +6,7 @@ metadata:
   labels:
     app: crdt-server
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: crdt-server
@@ -15,17 +15,19 @@ spec:
       labels:
         app: crdt-server
     spec:
+      imagePullSecrets:
+        - name: aws-ecr-secret
       containers:
         - name: crdt-demo-server
-          image: stephengrider/multi-server
+          image: 963352896991.dkr.ecr.us-east-1.amazonaws.com/crdtdemo/node:latest
           ports:
             - containerPort: 5000
           resources:
             requests:
-              memory: "64Mi"
+              memory: "256Mi"
               cpu: "250m"
             limits:
-              memory: "128Mi"
+              memory: "512Mi"
               cpu: "500m"
 ---
 # this is a service for the server

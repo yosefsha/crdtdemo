@@ -36,9 +36,12 @@ RUN echo "MYENV is iiiiiiii: $MYENV"  # Debugging
 
 # Use it in your build
 RUN echo "Building with MYENV=$MYENV"
+ARG API_URL
+ENV REACT_APP_API_URL=$API_URL
+RUN echo "Building with REACT_APP_API_URL=$REACT_APP_API_URL"
 
 # RUN npm run build
-RUN REACT_APP_MYENV=$MYENV npm run build
+RUN REACT_APP_API_URL=$API_URL REACT_APP_MYENV=$MYENV npm run build
 
 # Use the nginx image as the base image
 FROM nginx:alpine
@@ -50,8 +53,6 @@ COPY --from=build /app/build .
 # Expose port 80
 EXPOSE 80
 
-ENV PORT=80
-# ENV REACT_APP_API_URL=http://localhost:5000
 
 # Start the nginx server
 CMD ["nginx", "-g", "daemon off;"]

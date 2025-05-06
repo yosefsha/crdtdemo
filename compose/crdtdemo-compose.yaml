@@ -1,0 +1,42 @@
+services:
+  mongo:
+    image: mongo
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    networks:
+      - app-network
+    volumes:
+      - mongo-data:/data/db
+
+  server:
+    build: ../server
+    container_name: server
+    ports:
+      - "5001:5001"
+    networks:
+      - app-network
+    depends_on:
+      - mongo
+    environment:
+      - MONGO_URL=mongodb://mongo:27017/mydb
+
+  client:
+    build:
+      context: ../rclient
+      args:
+        API_URL: http://localhost:5001
+        MYENV: "docker"
+    container_name: rclient
+    ports:
+      - "3000:80"
+    networks:
+      - app-network
+    depends_on:
+      - server
+
+networks:
+  app-network:
+
+volumes:
+  mongo-data:

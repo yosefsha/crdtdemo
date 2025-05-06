@@ -4,12 +4,19 @@ import { router as crdtRouter } from "./routes/crdtRoutes";
 import cors from "cors";
 import bodyParser from "body-parser";
 import cookieSession from "cookie-session";
+import mongoose from "mongoose";
 
 const port = process.env.PORT || 4000; // Use the environment PORT or default to 4000
 const origin1 = process.env.CLIENT_ORIGIN || "http://localhost:3000"; // For local dev
 const origins = [origin1, "http://localhost"]; // Allow both local and configured origins
 
 const app = express();
+
+const mongoUrl = process.env.MONGO_URL || "mongodb://localhost:27017/mydb";
+mongoose
+  .connect(mongoUrl)
+  .then(() => console.log("✅ Connected to MongoDB"))
+  .catch((err) => console.error("MongoDB error:", err));
 
 // Enable CORS with dynamic origins based on environment
 app.use(

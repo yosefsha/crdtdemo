@@ -13,11 +13,10 @@ RUN npm install
 COPY . .
 
 # Expose the port for HTTP (App Runner will handle HTTPS externally)
-EXPOSE 5000
+EXPOSE 5001
 
 # Set environment variables
-ENV PORT=5000
-ENV CLIENT_ORIGIN=http://localhost:80  
+ENV PORT=5001
 # App Runner will handle HTTPS externally
 
 # Start the server

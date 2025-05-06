@@ -14,11 +14,16 @@ const config = {
 };
 
 function getDefaultApiDomain(env: string): string {
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
   switch (env) {
     case "prod":
       return "https://api.yossidemo.click";
     case "dev":
       return "https://api.yossidemo.click";
+    case "docker":
+      return "http://server:5001";
     case "local":
       return "http://localhost:4000";
     default:
