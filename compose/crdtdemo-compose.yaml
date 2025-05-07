@@ -34,6 +34,18 @@ services:
       - app-network
     depends_on:
       - server
+  auth:
+    build: ../auth
+    container_name: auth
+    ports:
+      - "4000:4000"
+    environment:
+      - JWT_SECRET=supersecret
+      - MONGO_URI=mongodb://mongo:27017/authdb
+    depends_on:
+      - mongo
+    networks:
+      - app-network
 
 networks:
   app-network:

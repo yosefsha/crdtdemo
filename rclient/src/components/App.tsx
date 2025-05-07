@@ -7,11 +7,8 @@ import "../styles/App.css";
 import CRDTDemo from "./CRDTDemo";
 import * as actions from "../actions";
 import Login from "./Login"; // Import the Login component
-
-interface AppProps {
-  auth: boolean;
-  setAuth: (auth: boolean) => void;
-}
+import { AppProps } from "../types/app";
+import Register from "./Register";
 
 class App extends React.Component<AppProps, {}> {
   componentDidUpdate(prevProps: AppProps) {
@@ -54,6 +51,9 @@ class App extends React.Component<AppProps, {}> {
             <li>
               <Link to="/crdtdemo">CRDT</Link>
             </li>
+            <li>
+              <Link to="/register">Register</Link>
+            </li>
           </ul>
         </nav>
         {/* <div className="login-container">{this.renderLoginButton()}</div> */}
@@ -70,8 +70,8 @@ class App extends React.Component<AppProps, {}> {
             <Route path="/" element={<CommentsList />} />
             <Route path="/comment" element={<CommentBox />} />
             <Route path="/crdtdemo" element={<CRDTDemo />} />
-            <Route path="/login" element={<Login />} />{" "}
-            {/* Add the login route */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
           </Routes>
         </div>
       </div>
