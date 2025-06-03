@@ -14,7 +14,7 @@ print("Working Directory 11:", os.getcwd())
 # change to current file dir
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-path = "./secrets/xapiconf.json"
+path = "./secrets/apiconf.json"
 print("Working Directory 22:", os.getcwd())
 if os.path.exists(path):
     print(f"The path '{path}' exists.")
@@ -27,6 +27,8 @@ with open(path) as f:
 # Ensure the token is set
 if not BEARER_TOKEN:
     raise ValueError("Bearer token is not set. Please set it in the script.")
+else :
+    print('will use {} barear token'.format(BEARER_TOKEN))
 
 def get_user_id(username):
     url = f"https://api.twitter.com/2/users/by/username/{username}"
@@ -75,15 +77,15 @@ def get_tweets(user_id, start_time, end_time, include_attachments=False):
 
     return tweets
 
-# Example usage
 if __name__ == "__main__":
-    username = "@shachnovsky"
+    username = "shachnovsky"
     # ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ
     start_time = "2024-01-01T00:00:00Z"
     end_time = "2024-12-31T23:59:59Z"
     filter_attachments = True  # Set to False if you don't want to filter
 
     user_id = get_user_id(username)
+    print(f"User ID for '{username}': {user_id}")
     tweets = get_tweets(user_id, start_time, end_time, include_attachments=filter_attachments)
 
     for t in tweets:
