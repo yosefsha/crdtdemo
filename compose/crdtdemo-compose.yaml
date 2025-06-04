@@ -34,6 +34,7 @@ services:
       - app-network
     depends_on:
       - server
+
   auth:
     build: ../auth
     container_name: auth

@@ -31,6 +31,7 @@ export function registerUser(user: UserCredentioals) {
     }
   };
 }
+
 export function fetchComments() {
   console.log("fetchComments action called");
   return async (dispatch: any) => {
