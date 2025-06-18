@@ -21,9 +21,10 @@ async function forwardRequest(path: string, req: Request, res: Response) {
 }
 
 // Forwarded auth routes
-router.post("/register", (req, res) =>
-  forwardRequest("/auth/register", req, res)
-);
+router.post("/register", (req, res) => {
+  console.log("Register request received forwarding ", req.body || "");
+  return forwardRequest("/auth/register", req, res);
+});
 router.post("/login", (req, res) => forwardRequest("/auth/login", req, res));
 router.post("/logout", (req, res) => forwardRequest("/auth/logout", req, res));
 
@@ -36,50 +37,15 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   res.send("Not permitted");
 }
 
-// router.get("/login", (req: Request, res: Response) => {
-//   res.send(`
-//         <h1>login page</h1>
-//         <form method="post">
-//             <input type="text" name="email" placeholder="email" />
-//             <input type="password" name="password" placeholder="password" />
-//             <button type="submit">Login</button>`);
-// });
-
 router.get("/", (req: RequestWithBody, res: Response) => {
-  if (req.session && req.session.loggedIn) {
-    res.send(`
-        <div>
-            <div>You are logged in</div>
-            <a href="/logout">Logout</a>
-            <a href="/logout">Logout</a>
-            <a href="/restricted">Restricted</a>
-        </div>
-        `);
-  } else {
-    console.log("not logged in");
-    console.log(req.session);
-    res.send(`
-        <div>
-            <div>You are not logged in</div>
-            <a href="/login">Login</a>
-        </div>
-        `);
-  }
+  // Remove session logic, just return a simple message or status
+  res.send({
+    status: "ok",
+    message: "Auth API root. Use /register or /login.",
+  });
 });
 
-router.post("/login", (req: RequestWithBody, res: Response) => {
-  const { email, password } = req.body;
-  if (email && password && email === "hi@hi.com" && password === "admin") {
-    // mark this person as logged in
-    if (req.session) {
-      req.session.loggedIn = true;
-    }
-    // redirect them to the root route
-    res.redirect("/");
-  } else {
-    res.send("Invalid username or password");
-  }
-});
+// Remove legacy session-based login route, as JWT is now used and forwarding is handled above
 
 // router.get("/logout", (req: RequestWithBody, res: Response) => {
 //   if (req.session && req.session.loggedIn) {

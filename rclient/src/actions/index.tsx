@@ -1,3 +1,7 @@
+// This file is now obsolete after migration to Redux Toolkit slices.
+// All authentication and comment logic is handled in src/slices/.
+// This file is kept for reference and should be deleted if no longer needed.
+
 import { SAVE_COMMENT, FETCH_COMMENTS, CHANGE_AUTH } from "./types";
 import { User, UserCredentioals } from "../types/app";
 

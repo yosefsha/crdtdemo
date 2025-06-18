@@ -1,14 +1,14 @@
 import { configureStore } from "@reduxjs/toolkit";
-import rootReducer from "./reducers";
-import reduxPromise from "redux-promise";
+import authReducer from "./slices/authSlice";
+import commentsReducer from "./slices/commentsSlice";
 
-const createStore = (preloadedState?: any) => {
-  return configureStore({
-    reducer: rootReducer,
-    preloadedState,
-    middleware: (getDefaultMiddleware: any) =>
-      getDefaultMiddleware().concat(reduxPromise),
-  });
-};
+const store = configureStore({
+  reducer: {
+    auth: authReducer,
+    comments: commentsReducer,
+  },
+});
 
-export default createStore;
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+export default store;

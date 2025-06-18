@@ -1,3 +1,6 @@
+// This component is now obsolete after migration to AuthPage and Redux Toolkit slices.
+// Please use src/components/AuthPage.tsx for authentication UI.
+
 import React from "react";
 import { connect } from "react-redux";
 import * as actions from "../actions";

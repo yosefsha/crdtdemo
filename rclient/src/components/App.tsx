@@ -6,9 +6,8 @@ import { Routes, Route, Link } from "react-router-dom";
 import "../styles/App.css";
 import CRDTDemo from "./CRDTDemo";
 import * as actions from "../actions";
-import Login from "./Login"; // Import the Login component
+import AuthPage from "./AuthPage";
 import { AppProps } from "../types/app";
-import Register from "./Register";
 
 class App extends React.Component<AppProps, {}> {
   componentDidUpdate(prevProps: AppProps) {
@@ -43,16 +42,13 @@ class App extends React.Component<AppProps, {}> {
               <Link to="/">Home</Link>
             </li>
             <li>
-              <Link to="/login">{loginText}</Link>
+              <Link to="/auth">Auth</Link>
             </li>
             <li>
               <Link to="/comment">Comment</Link>
             </li>
             <li>
               <Link to="/crdtdemo">CRDT</Link>
-            </li>
-            <li>
-              <Link to="/register">Register</Link>
             </li>
           </ul>
         </nav>
@@ -70,8 +66,7 @@ class App extends React.Component<AppProps, {}> {
             <Route path="/" element={<CommentsList />} />
             <Route path="/comment" element={<CommentBox />} />
             <Route path="/crdtdemo" element={<CRDTDemo />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+            <Route path="/auth" element={<AuthPage />} />
           </Routes>
         </div>
       </div>

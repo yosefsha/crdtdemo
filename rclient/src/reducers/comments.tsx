@@ -1,3 +1,6 @@
+// This reducer is now obsolete after migration to Redux Toolkit slices.
+// Please use src/slices/commentsSlice.ts for comment state management.
+
 import { SAVE_COMMENT, FETCH_COMMENTS } from "../actions/types";
 
 const d = (state = [], action: any) => {
