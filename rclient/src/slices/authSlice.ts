@@ -10,19 +10,33 @@ interface AuthPayload {
   mode: "register" | "login";
 }
 
-// Async thunk for both registration and login
-// Dispatches an API call to the appropriate endpoint based on mode
-const registerOrLogin = createAsyncThunk<
-  { user: any; token: string },
-  AuthPayload,
+// Async thunk for registration (does not expect a token)
+const register = createAsyncThunk<
+  { message: string },
+  { user: any },
   { rejectValue: string }
->("auth/registerOrLogin", async ({ user, mode }, thunkAPI) => {
-  // Use config.apiDomain for endpoint
-  const url =
-    mode === "register"
-      ? `${config.apiDomain}/register`
-      : `${config.apiDomain}/login`;
-  // Make API request
+>("auth/register", async ({ user }, thunkAPI) => {
+  const url = `${config.apiDomain}/register`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user }),
+  });
+  const data = await response.json();
+  if (response.ok && data.message) {
+    return { message: data.message };
+  } else {
+    return thunkAPI.rejectWithValue(data.error || "Registration failed");
+  }
+});
+
+// Async thunk for login (expects a token)
+const login = createAsyncThunk<
+  { user: any; token: string },
+  { user: any },
+  { rejectValue: string }
+>("auth/login", async ({ user }, thunkAPI) => {
+  const url = `${config.apiDomain}/login`;
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -30,12 +44,10 @@ const registerOrLogin = createAsyncThunk<
   });
   const data = await response.json();
   if (response.ok && data.token) {
-    // Store JWT on success
     localStorage.setItem(tokenKey, data.token);
     return { user: data.user, token: data.token };
   } else {
-    // Return error message on failure
-    return thunkAPI.rejectWithValue(data.error || "Auth failed");
+    return thunkAPI.rejectWithValue(data.error || "Login failed");
   }
 });
 
@@ -61,27 +73,38 @@ const initialState: {
 const authSlice = createSlice({
   name: "auth",
   initialState,
-  reducers: {}, // No synchronous reducers needed
+  reducers: {},
   extraReducers: (builder) => {
     builder
-      // Handle pending state for async login/register
-      .addCase(registerOrLogin.pending, (state) => {
+      // Registration
+      .addCase(register.pending, (state) => {
         state.status = "loading";
         state.error = null;
       })
-      // Handle fulfilled state (success)
-      .addCase(registerOrLogin.fulfilled, (state, action) => {
+      .addCase(register.fulfilled, (state, action) => {
+        state.status = "succeeded";
+        state.error = null;
+      })
+      .addCase(register.rejected, (state, action) => {
+        state.status = "failed";
+        state.error = action.payload ?? null;
+      })
+      // Login
+      .addCase(login.pending, (state) => {
+        state.status = "loading";
+        state.error = null;
+      })
+      .addCase(login.fulfilled, (state, action) => {
         state.status = "succeeded";
         state.user = action.payload.user;
         state.token = action.payload.token;
         state.error = null;
       })
-      // Handle rejected state (error)
-      .addCase(registerOrLogin.rejected, (state, action) => {
+      .addCase(login.rejected, (state, action) => {
         state.status = "failed";
         state.error = action.payload ?? null;
       })
-      // Handle logout
+      // Logout
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
         state.token = null;
@@ -92,4 +115,4 @@ const authSlice = createSlice({
 });
 
 export default authSlice.reducer;
-export { registerOrLogin, logout };
+export { register, login, logout };

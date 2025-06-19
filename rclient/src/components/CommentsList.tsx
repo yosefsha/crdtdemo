@@ -10,9 +10,9 @@ const CommentsList: React.FC = () => {
     (state: RootState) => state.comments
   );
 
-  useEffect(() => {
-    dispatch(fetchComments() as any);
-  }, [dispatch]);
+  // useEffect(() => {
+  //   dispatch(fetchComments() as any);
+  // }, [dispatch]);
 
   if (status === "loading") return <div>Loading comments...</div>;
   if (status === "failed") return <div>Error: {error}</div>;

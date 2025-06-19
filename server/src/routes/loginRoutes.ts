@@ -25,7 +25,10 @@ router.post("/register", (req, res) => {
   console.log("Register request received forwarding ", req.body || "");
   return forwardRequest("/auth/register", req, res);
 });
-router.post("/login", (req, res) => forwardRequest("/auth/login", req, res));
+router.post("/login", (req, res) => {
+  console.log("Login request received forwarding ", req.body || "");
+  return forwardRequest("/auth/login", req, res);
+});
 router.post("/logout", (req, res) => forwardRequest("/auth/logout", req, res));
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {

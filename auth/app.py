@@ -25,8 +25,6 @@ users = db.users
 def auth_register():
     data = request.get_json()
     logger.info(f"Received registration data: {data}")
-    #  {'user': {'email': 'sh.yosef@gmail.com', 'password': '111', 'full_name': 'tt nn'}}
-
     if not data or not isinstance(data, dict):
         logger.warning("Registration failed: No data provided")
         return jsonify({"error": "No valid data provided"}), 400
@@ -50,26 +48,41 @@ def auth_register():
     return jsonify({"message": f"User with email '{email}' registered successfully."}), 201
 
 
-@app.route("/login", methods=["POST"])
+@app.route("/auth/login", methods=["POST"])
 def login():
     data = request.get_json()
-    username = data.get("username")
-    password = data.get("password")
-    logger.info(f"Login attempt for username: {username}")
+    logger.info(f"Received login data: {data}")
+    if not data or not isinstance(data, dict):
+        logger.warning("Login failed: No data provided")
+        return jsonify({"error": "No valid data provided"}), 400
+    user_data = data.get("user")
+    email = user_data.get("email") if user_data else None
+    password = user_data.get("password") if user_data else None
 
-    user = users.find_one({"username": username})
-    if not user or user["password"] != password:
-        logger.warning(f"Login failed for username: {username}")
+    # TODO: add additional validation for username and password length
+    # if len(data["username"]) < 3 or len(data["password"]) < 6:
+
+    logger.info(f"Login attempt for email: {email}")
+
+    user_from_db = users.find_one({"email": email})
+    if not user_from_db or user_from_db["password"] != password:
+        logger.warning(f"Login failed for email: {email}")
         return jsonify({"error": "Invalid credentials"}), 401
 
     payload = {
-        "user": username,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=JWT_EXP_DELTA_SECONDS)
+        "user": email,
+        "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=JWT_EXP_DELTA_SECONDS)
     }
     token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
-    logger.info(f"Login successful for username: {username}")
-
-    return jsonify({"token": token})
+    logger.info(f"Login successful for username: {email}")
+    #  return user object without password but with token
+    user_info = {
+        "email": user_from_db["email"],
+        "first_name": user_from_db.get("first_name"),
+        "last_name": user_from_db.get("last_name")
+    }
+    logger.info(f"Generated token for user: {user_info}")
+    return jsonify({"token": token, "user": user_info}), 200
 
 
 @app.route("/verify", methods=["POST"])
