@@ -6,12 +6,8 @@ import { Routes, Route, Link } from "react-router-dom";
 import "../styles/App.css";
 import CRDTDemo from "./CRDTDemo";
 import * as actions from "../actions";
-import Login from "./Login"; // Import the Login component
-
-interface AppProps {
-  auth: boolean;
-  setAuth: (auth: boolean) => void;
-}
+import AuthPage from "./AuthPage";
+import { AppProps } from "../types/app";
 
 class App extends React.Component<AppProps, {}> {
   componentDidUpdate(prevProps: AppProps) {
@@ -46,7 +42,7 @@ class App extends React.Component<AppProps, {}> {
               <Link to="/">Home</Link>
             </li>
             <li>
-              <Link to="/login">{loginText}</Link>
+              <Link to="/auth">Auth</Link>
             </li>
             <li>
               <Link to="/comment">Comment</Link>
@@ -70,8 +66,7 @@ class App extends React.Component<AppProps, {}> {
             <Route path="/" element={<CommentsList />} />
             <Route path="/comment" element={<CommentBox />} />
             <Route path="/crdtdemo" element={<CRDTDemo />} />
-            <Route path="/login" element={<Login />} />{" "}
-            {/* Add the login route */}
+            <Route path="/auth" element={<AuthPage />} />
           </Routes>
         </div>
       </div>

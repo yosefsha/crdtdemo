@@ -1,0 +1,99 @@
+import React, { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { register, login, logout } from "../slices/authSlice";
+import { RootState } from "../store";
+
+const AuthPage: React.FC = () => {
+  const dispatch = useDispatch();
+  const { user, token, status, error } = useSelector(
+    (state: RootState) => state.auth
+  );
+  const [mode, setMode] = useState<"login" | "register">("register");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (mode === "register") {
+      dispatch(
+        register({ user: { email, password, full_name: fullName } }) as any
+      );
+    } else {
+      dispatch(login({ user: { email, password } }) as any);
+    }
+  };
+
+  useEffect(() => {
+    console.log("Auth was rendered (mounted)");
+  }, []);
+
+  useEffect(() => {
+    if (status === "succeeded" && mode === "register") {
+      setRegistrationSuccess(true);
+      setMode("login");
+      setEmail("");
+      setPassword("");
+      setFullName("");
+    }
+  }, [status, mode]);
+
+  const handleLogout = () => {
+    dispatch(logout() as any);
+  };
+
+  if (token) {
+    return (
+      <div>
+        <h2>Welcome, {user?.email || "User"}!</h2>
+        <button onClick={handleLogout}>Logout</button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h2>{mode === "login" ? "Login" : "Register"}</h2>
+      <form onSubmit={handleSubmit}>
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        {mode === "register" && (
+          <input
+            type="text"
+            placeholder="Full Name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            required
+          />
+        )}
+        <button type="submit" disabled={status === "loading"}>
+          {mode === "login" ? "Login" : "Register"}
+        </button>
+      </form>
+      <button onClick={() => setMode(mode === "login" ? "register" : "login")}>
+        Switch to {mode === "login" ? "Register" : "Login"}
+      </button>
+      {status === "failed" && <div style={{ color: "red" }}>{error}</div>}
+      {registrationSuccess && (
+        <div style={{ color: "green" }}>
+          Registration successful! Please log in.
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default AuthPage;

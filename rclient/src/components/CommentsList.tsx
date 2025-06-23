@@ -1,32 +1,32 @@
-import React from "react";
-import { connect } from "react-redux";
+import React, { useEffect } from "react";
+import { useSelector, useDispatch } from "react-redux";
+import { fetchComments } from "../slices/commentsSlice";
 import css from "../styles/CommentsList.module.css";
+import { RootState } from "../store";
 
-//export default function CommentsList() {
-//  return <div>CommentsList</div>;
+const CommentsList: React.FC = () => {
+  const dispatch = useDispatch();
+  const { items, status, error } = useSelector(
+    (state: RootState) => state.comments
+  );
 
-interface CommentsListProps {
-  comments: string[];
-}
+  // useEffect(() => {
+  //   dispatch(fetchComments() as any);
+  // }, [dispatch]);
 
-class CommentsList extends React.Component<CommentsListProps> {
-  render() {
-    return (
-      <div className={css.comments}>
-        <h3>Comments list:</h3>
-        <ul>
-          {this.props.comments.map((comment: string, index: number) => {
-            return <li key={index}>{comment}</li>;
-          })}
-        </ul>
-      </div>
-    );
-  }
-}
+  if (status === "loading") return <div>Loading comments...</div>;
+  if (status === "failed") return <div>Error: {error}</div>;
 
-function mapStateToProps(state: { comments: string[] }) {
-  console.log("CommentsList: mapStateToProps: state: ", state);
-  return { comments: state.comments };
-}
+  return (
+    <div className={css.comments}>
+      <h3>Comments list:</h3>
+      <ul>
+        {items.map((comment: any, index: number) => (
+          <li key={index}>{comment.body || comment}</li>
+        ))}
+      </ul>
+    </div>
+  );
+};
 
-export default connect(mapStateToProps, null)(CommentsList);
+export default CommentsList;
