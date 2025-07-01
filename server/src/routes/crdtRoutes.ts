@@ -3,6 +3,7 @@ import { requireAuth } from "./loginRoutes";
 import { RequestWithBody } from "./interfaces";
 import { crdtService } from "../services/crdtService";
 import { PixelDeltaPacket } from "../crdt/PixelDataCRDT";
+import { verifyJWT } from "./verifyJWT";
 const router = Router();
 
 router.get("/sync", (req: RequestWithBody, res: Response) => {
@@ -10,7 +11,7 @@ router.get("/sync", (req: RequestWithBody, res: Response) => {
   res.json(req.session);
 });
 
-router.post("/sync", (req: RequestWithBody, res: Response) => {
+router.post("/sync", verifyJWT, (req: RequestWithBody, res: Response) => {
   //check if request has a body
   console.log("req.body: ", req.body);
   if (!req.body) {

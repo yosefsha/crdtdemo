@@ -3,6 +3,8 @@ import { RGB, PixelDataCRDT, PixelDeltaPacket } from "../crdt/PixelDataCRDT";
 import CanvasEditor from "./CanvasEditor";
 import css from "../styles/CRDTDemo.module.css";
 import config from "../config";
+import { useSelector } from "react-redux";
+import type { RootState } from "../store";
 
 const CRDTDemo = () => {
   const width = 200;
@@ -10,11 +12,27 @@ const CRDTDemo = () => {
   const [sharedState, setSharedState] = useState(0);
   const [color, setColor] = useState<RGB | null>([0, 0, 0]); // Default color
   const [isEraser, setIsEraser] = useState(false); // Eraser mode
+  const [loginPromptActive, setLoginPromptActive] = useState(false);
   const currentColorRef = useRef<RGB | null>(color);
   const pixelData1 = useMemo(() => new PixelDataCRDT("pixelData1"), []); // Created only once
   const pixelData2 = useMemo(() => new PixelDataCRDT("pixelData2"), []);
+  const { user, token, status, error } = useSelector(
+    (state: RootState) => state.auth
+  );
+
+  React.useEffect(() => {
+    if (token) {
+      console.log("CRDTDemo: Got token:", token);
+    }
+  }, [token]);
 
   const handleStateChange = async (deltaPacket: PixelDeltaPacket) => {
+    if (!token) {
+      console.error("CRDTDemo: No JWT token available. Request aborted.");
+      setLoginPromptActive(true);
+      return;
+    }
+    setLoginPromptActive(false);
     console.log(
       `CRDTDemo: handleStateChange: will send ${deltaPacket.deltas.length} deltas of agent ${deltaPacket.agentId} to ${config.apiDomain}/api/sync `
     );
@@ -24,6 +42,7 @@ const CRDTDemo = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ deltas: deltaPacket }),
       });
@@ -115,6 +134,24 @@ const CRDTDemo = () => {
           Eraser
         </label>
       </div>
+      {token && (
+        <div className={css.userInfo}>
+          <p>Logged in as: {user?.email || "User"}</p>
+          <p>Status: {status}</p>
+          {error && <p className={css.error}>Error: {error}</p>}
+        </div>
+      )}
+      {!token && (
+        <div
+          className={
+            loginPromptActive
+              ? `${css.loginPrompt} ${css.highlight}`
+              : css.loginPrompt
+          }
+        >
+          <p>Please log in to access the drawing tools.</p>
+        </div>
+      )}
     </div>
   );
 };

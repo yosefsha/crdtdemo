@@ -53,6 +53,7 @@ const login = createAsyncThunk<
 
 // Async thunk for logging out (removes JWT)
 const logout = createAsyncThunk("auth/logout", async () => {
+  console.log("Logging out, removing token from localStorage");
   localStorage.removeItem(tokenKey);
 });
 

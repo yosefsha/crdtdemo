@@ -41,7 +41,7 @@ services:
     ports:
       - "4000:4000"
     environment:
-      - JWT_SECRET=supersecret
+      - JWT_SECRET=defaultsecret
       - MONGO_URI=mongodb://mongo:27017/authdb
     depends_on:
       - mongo
@@ -58,6 +58,25 @@ services:
       - ME_CONFIG_MONGODB_PORT=27017
       - ME_CONFIG_BASICAUTH_USERNAME=admin
       - ME_CONFIG_BASICAUTH_PASSWORD=admin
+    networks:
+      - app-network
+
+  rabbit-mq:
+    image: rabbitmq:3
+    container_name: rabbit-mq
+    ports:
+      - "5672:5672"
+    networks:
+      - app-network
+
+  rabbit-mq-ui:
+    image: rabbitmq:3-management
+    container_name: rabbit-mq-ui
+    ports:
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
     networks:
       - app-network
 networks:
