@@ -8,7 +8,7 @@ const AuthPage: React.FC = () => {
   const { user, token, status, error } = useSelector(
     (state: RootState) => state.auth
   );
-  const [mode, setMode] = useState<"login" | "register">("register");
+  const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
