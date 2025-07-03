@@ -71,6 +71,7 @@ def login():
 
     payload = {
         "user": email,
+        "user_id": str(user_from_db.get("_id")),
         "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=JWT_EXP_DELTA_SECONDS)
     }
     token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")

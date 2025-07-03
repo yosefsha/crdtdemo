@@ -32,7 +32,9 @@ class DbService {
 
   async createDocument(document: any) {
     const result = await this.collection.insertOne(document);
-    const insertedDocument = await this.collection.findOne({ _id: result.insertedId });
+    const insertedDocument = await this.collection.findOne({
+      _id: result.insertedId,
+    });
     return insertedDocument;
   }
 
@@ -57,6 +59,17 @@ class DbService {
   async readAllDocuments() {
     const documents = await this.collection.find().toArray();
     return documents;
+  }
+
+  // Upsert a document by filter (e.g., { userId })
+  async upsertDocument(filter: any, update: any) {
+    const result = await this.collection.updateOne(
+      filter,
+      { $set: update },
+      { upsert: true }
+    );
+    // Return the upserted or updated document
+    return this.collection.findOne(filter);
   }
 }
 

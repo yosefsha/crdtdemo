@@ -1,9 +1,11 @@
 import { PixelDataCRDT, PixelDeltaPacket } from "../crdt/PixelDataCRDT";
 import { getCurrentDateTimeString } from "./helpers";
+import { userCrdtDb, upsertUserCrdtDocument } from "./userCrdtDb";
 
 class CRDTService {
   private static instance: CRDTService;
   private pixelData: PixelDataCRDT;
+  private userPixelData: Record<string, PixelDataCRDT> = {};
 
   constructor() {
     this.pixelData = new PixelDataCRDT(
@@ -36,6 +38,58 @@ class CRDTService {
   // }
   syncDeltas(deltas: PixelDeltaPacket) {
     return this.pixelData.merge(deltas);
+  }
+
+  getOrCreateUserPixelData(userId: string): PixelDataCRDT {
+    if (!this.userPixelData[userId]) {
+      this.userPixelData[userId] = new PixelDataCRDT(
+        `UserPixelData_${userId}_${getCurrentDateTimeString()}`
+      );
+    }
+    return this.userPixelData[userId];
+  }
+
+  async syncUserDeltas(userId: string, deltas: PixelDeltaPacket) {
+    const userPixelData = this.getOrCreateUserPixelData(userId);
+    const merged = userPixelData.merge(deltas);
+    // Save to MongoDB after merge (upsert by userId)
+    try {
+      await upsertUserCrdtDocument(
+        { _id: userId },
+        {
+          _id: userId,
+          userId,
+          timestamp: new Date(),
+          crdt: userPixelData.toJSON(), // Store as JSON
+        }
+      );
+    } catch (err) {
+      // This catch is mostly redundant, but you can keep it for synchronous errors
+      console.error(
+        `Unexpected error in syncUserDeltas for user ${userId}:`,
+        err
+      );
+    }
+    return merged;
+  }
+
+  async getUserPixelDataFromDb(userId: string) {
+    // Efficiently load the latest CRDT document for this user using upsertDocument's filter
+    const doc = await userCrdtDb.upsertDocument({ _id: userId }, {}); // upsertDocument returns the doc, but we don't want to update, just fetch
+    // If not found, upsertDocument will create an empty doc, so instead use a new method for find
+    if (doc && doc.crdt) {
+      return PixelDataCRDT.fromJSON(doc.crdt);
+    }
+    return null;
+  }
+
+  async loadUserPixelData(userId: string) {
+    const crdt = await this.getUserPixelDataFromDb(userId);
+    if (crdt) {
+      // Replace in-memory CRDT for this user
+      this.userPixelData[userId] = crdt;
+    }
+    return this.userPixelData[userId] || null;
   }
 }
 

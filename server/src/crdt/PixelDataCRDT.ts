@@ -86,6 +86,26 @@ export class PixelDataCRDT implements ICRDT<RGB, PixelDelta> {
     return { deltas, agentId: this.id };
   }
 
+  /**
+   * Serialize the CRDT state to a plain JSON object for storage.
+   */
+  toJSON(): any {
+    return {
+      id: this.id,
+      state: this.state.state, // LWWMap's internal state
+    };
+  }
+
+  /**
+   * Load a PixelDataCRDT from a plain JSON object.
+   */
+  static fromJSON(json: any): PixelDataCRDT {
+    const crdt = new PixelDataCRDT(json.id || "loaded");
+    // LWWMap constructor accepts id and state
+    crdt.state = new (crdt.state.constructor as any)(crdt.id, json.state || {});
+    return crdt;
+  }
+
   // TODO: add a methot that checks current version of the state and returns the deltas that are not in the current state
 
   static getKey(x: number, y: number): string {
