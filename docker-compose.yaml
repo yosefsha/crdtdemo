@@ -20,7 +20,7 @@ services:
       - mongo
     environment:
       - MONGO_URL=mongodb://mongo:27017/mydb
-      - JWT_SECRET=defaultsecret
+      - JWT_SECRET=supersecret
 
   client:
     build:
@@ -42,7 +42,7 @@ services:
     ports:
       - "4000:4000"
     environment:
-      - JWT_SECRET=defaultsecret
+      - JWT_SECRET=supersecret
       - MONGO_URI=mongodb://mongo:27017/authdb
     depends_on:
       - mongo

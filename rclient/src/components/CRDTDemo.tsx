@@ -23,6 +23,32 @@ const CRDTDemo = () => {
   React.useEffect(() => {
     if (token) {
       console.log("CRDTDemo: Got token:", token);
+      // Fetch user CRDT state from server
+      fetch(`${config.apiDomain}/api/sync`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            const err = await res.json();
+            throw err;
+          }
+          return res.json();
+        })
+        .then((data) => {
+          if (data.crdt) {
+            const loaded = PixelDataCRDT.fromJSON(data.crdt);
+            // Option 1: Replace pixelData1's state
+            Object.assign(pixelData1, loaded);
+            // Object.assign(pixelData2, loaded);
+            setSharedState((prev) => prev + 1); // force re-render
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to load user CRDT from server", err);
+        });
     }
   }, [token]);
 
