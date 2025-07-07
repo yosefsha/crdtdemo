@@ -43,8 +43,8 @@ app.use(
 );
 
 // Use the router for login and API
-app.use(loginRouter);
 app.use("/api", crdtRouter);
+app.use("/api", loginRouter);
 // Health check route
 app.get("/health", (req, res) => {
   console.log("Health check endpoint hit");
