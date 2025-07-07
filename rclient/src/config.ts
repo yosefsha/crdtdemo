@@ -25,7 +25,7 @@ function getDefaultApiDomain(env: string): string {
     case "docker":
       return "http://server:5001";
     case "local":
-      return "http://localhost:4000";
+      return "http://localhost/api";
     default:
       return "https://api.yossidemo.click";
   }

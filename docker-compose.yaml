@@ -1,15 +1,23 @@
 services:
-  mongo:
-    image: mongo
-    container_name: mongo
+  traefik:
+    image: traefik:v2.11
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
     ports:
-      - "27017:27017"
+      - "80:80" # Entry point for all routing
+      - "8080:8080" # Optional: Traefik dashboard
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
     networks:
       - app-network
-    volumes:
-      - mongo-data:/data/db
 
   server:
+    labels:
+      - "traefik.http.routers.server.rule=PathPrefix(`/api`)"
+      - "traefik.http.services.server.loadbalancer.server.port=5001"
+
     build: ./server
     container_name: server
     ports:
@@ -23,14 +31,16 @@ services:
       - JWT_SECRET=supersecret
 
   client:
+    labels:
+      - "traefik.http.routers.client.rule=PathPrefix(`/`)"
+      - "traefik.http.services.client.loadbalancer.server.port=80"
+
     build:
       context: ./rclient
       args:
-        API_URL: http://localhost:5001
+        API_URL: http://localhost/api
         MYENV: "docker"
     container_name: rclient
-    ports:
-      - "3000:80"
     networks:
       - app-network
     depends_on:
@@ -39,8 +49,6 @@ services:
   auth:
     build: ./auth
     container_name: auth
-    ports:
-      - "4000:4000"
     environment:
       - JWT_SECRET=supersecret
       - MONGO_URI=mongodb://mongo:27017/authdb
@@ -49,6 +57,15 @@ services:
     networks:
       - app-network
 
+  mongo:
+    image: mongo
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    networks:
+      - app-network
+    volumes:
+      - mongo-data:/data/db
   mongo-express:
     image: mongo-express
     restart: always
@@ -80,6 +97,7 @@ services:
       - RABBITMQ_DEFAULT_PASS=guest
     networks:
       - app-network
+
 networks:
   app-network:
 

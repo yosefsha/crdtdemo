@@ -24,7 +24,7 @@ const CRDTDemo = () => {
     if (token) {
       console.log("CRDTDemo: Got token:", token);
       // Fetch user CRDT state from server
-      fetch(`${config.apiDomain}/api/sync`, {
+      fetch(`${config.apiDomain}/sync`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -60,11 +60,11 @@ const CRDTDemo = () => {
     }
     setLoginPromptActive(false);
     console.log(
-      `CRDTDemo: handleStateChange: will send ${deltaPacket.deltas.length} deltas of agent ${deltaPacket.agentId} to ${config.apiDomain}/api/sync `
+      `CRDTDemo: handleStateChange: will send ${deltaPacket.deltas.length} deltas of agent ${deltaPacket.agentId} to ${config.apiDomain}/sync `
     );
 
     try {
-      const response = await fetch(`${config.apiDomain}/api/sync`, {
+      const response = await fetch(`${config.apiDomain}/sync`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
