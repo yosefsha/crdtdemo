@@ -1,6 +1,5 @@
 import React from "react";
-import CommentsList from "./CommentsList";
-import CommentBox from "./CommentBox";
+import Welcome from "./Welcome";
 import { Routes, Route, Link } from "react-router-dom";
 import "../styles/App.css";
 import CRDTDemo from "./CRDTDemo";
@@ -17,11 +16,11 @@ const App: React.FC = () => {
           <li>
             <Link to="/auth">Auth</Link>
           </li>
-          <li>
+          {/* <li>
             <Link to="/comment">Comment</Link>
-          </li>
+          </li> */}
           <li>
-            <Link to="/crdtdemo">CRDT</Link>
+            <Link to="/crdtdemo">CRDT Demo</Link>
           </li>
         </ul>
       </nav>
@@ -33,8 +32,8 @@ const App: React.FC = () => {
       {renderHeader()}
       <div className="main-content">
         <Routes>
-          <Route path="/" element={<CommentsList />} />
-          <Route path="/comment" element={<CommentBox />} />
+          <Route path="/" element={<Welcome />} />
+          {/* <Route path="/comment" element={<CommentBox />} /> */}
           <Route path="/crdtdemo" element={<CRDTDemo />} />
           <Route path="/auth" element={<AuthPage />} />
         </Routes>
