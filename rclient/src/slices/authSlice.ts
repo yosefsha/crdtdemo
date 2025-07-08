@@ -2,7 +2,7 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import config from "../config";
 
 // Key for storing JWT in localStorage
-const tokenKey = "jwtToken";
+const tokenKey = "jwtToken_";
 
 // Payload type for authentication actions
 interface AuthPayload {
@@ -33,7 +33,7 @@ const register = createAsyncThunk<
 // Async thunk for login (expects a token)
 const login = createAsyncThunk<
   { user: any; token: string },
-  { user: any },
+  { user: any; sliceKey?: string },
   { rejectValue: string }
 >("auth/login", async ({ user }, thunkAPI) => {
   const url = `${config.apiDomain}/login`;
@@ -44,7 +44,7 @@ const login = createAsyncThunk<
   });
   const data = await response.json();
   if (response.ok && data.token) {
-    localStorage.setItem(tokenKey, data.token);
+    localStorage.setItem(tokenKey + (data.sliceKey || ""), data.token);
     return { user: data.user, token: data.token };
   } else {
     return thunkAPI.rejectWithValue(data.error || "Login failed");
@@ -52,10 +52,14 @@ const login = createAsyncThunk<
 });
 
 // Async thunk for logging out (removes JWT)
-const logout = createAsyncThunk("auth/logout", async () => {
-  console.log("Logging out, removing token from localStorage");
-  localStorage.removeItem(tokenKey);
-});
+const logout = createAsyncThunk<{ sliceKey: string }, { sliceKey: string }>(
+  "auth/logout",
+  async ({ sliceKey }) => {
+    console.log("Logging out, removing token from localStorage");
+    localStorage.removeItem(tokenKey + sliceKey);
+    return { sliceKey };
+  }
+);
 
 // Initial state for authentication slice
 const initialState: {
@@ -65,7 +69,7 @@ const initialState: {
   error: string | null;
 } = {
   user: null,
-  token: localStorage.getItem(tokenKey) || null, // Load JWT from storage if present
+  token: localStorage.getItem(tokenKey + "") || null, // Load JWT from storage if present
   status: "idle",
   error: null,
 };

@@ -2,11 +2,14 @@ import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { register, login, logout } from "../slices/authSlice";
 import { RootState } from "../store";
+import { useUserAuthContext } from "./UserAuthContext";
 
 const AuthPage: React.FC = () => {
+  const { sliceKey } = useUserAuthContext();
   const dispatch = useDispatch();
+  // Select the correct auth state from Redux using sliceKey (with type assertion)
   const { user, token, status, error } = useSelector(
-    (state: RootState) => state.auth
+    (state: RootState) => (state as any)[sliceKey]
   );
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -18,10 +21,12 @@ const AuthPage: React.FC = () => {
     e.preventDefault();
     if (mode === "register") {
       dispatch(
-        register({ user: { email, password, full_name: fullName } }) as any
+        register({
+          user: { email, password, full_name: fullName },
+        }) as any
       );
     } else {
-      dispatch(login({ user: { email, password } }) as any);
+      dispatch(login({ user: { email, password }, sliceKey }) as any);
     }
   };
 
@@ -40,7 +45,7 @@ const AuthPage: React.FC = () => {
   }, [status, mode]);
 
   const handleLogout = () => {
-    dispatch(logout() as any);
+    dispatch(logout({ sliceKey }) as any);
   };
 
   if (token) {

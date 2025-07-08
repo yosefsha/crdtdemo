@@ -2,8 +2,8 @@ import React from "react";
 import Welcome from "./Welcome";
 import { Routes, Route, Link } from "react-router-dom";
 import "../styles/App.css";
-import CRDTDemo from "./CRDTDemo";
-import AuthPage from "./AuthPage";
+import CRDTDemoPage from "./CRDTDemoPage";
+import Users from "./Users";
 
 const App: React.FC = () => {
   const renderHeader = () => (
@@ -16,9 +16,6 @@ const App: React.FC = () => {
           <li>
             <Link to="/auth">Auth</Link>
           </li>
-          {/* <li>
-            <Link to="/comment">Comment</Link>
-          </li> */}
           <li>
             <Link to="/crdtdemo">CRDT Demo</Link>
           </li>
@@ -33,9 +30,8 @@ const App: React.FC = () => {
       <div className="main-content">
         <Routes>
           <Route path="/" element={<Welcome />} />
-          {/* <Route path="/comment" element={<CommentBox />} /> */}
-          <Route path="/crdtdemo" element={<CRDTDemo />} />
-          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/crdtdemo" element={<CRDTDemoPage />} />
+          <Route path="/auth" element={<Users />} />
         </Routes>
       </div>
     </div>
