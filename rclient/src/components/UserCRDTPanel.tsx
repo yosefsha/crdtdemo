@@ -6,6 +6,7 @@ import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import { useUserAuthContext } from "./UserAuthContext";
 import config from "../config";
+import SyncOptions from "./SyncOptions";
 
 interface UserCRDTPanelProps {
   pixelData: PixelDataCRDT;
@@ -52,8 +53,9 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({ pixelData }) => {
 
   return (
     <>
-      <h2>{userName}&apos;s Page</h2>
+      {userName ? <h2>{userName}&apos;s Page</h2> : null}
       <AuthPage />
+      <SyncOptions name={`syncOption-${sliceKey}`} />
       <CanvasEditor
         id={userName.toLowerCase()}
         width={200}

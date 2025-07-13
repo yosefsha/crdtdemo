@@ -52,7 +52,7 @@ const AuthPage: React.FC = () => {
   if (token) {
     return (
       <div>
-        <h2>Welcome, {user?.email || "Unknown user"}!</h2>
+        <h4>Welcome, {user?.email || "Unknown user"}!</h4>
         <button onClick={handleLogout}>Logout</button>
       </div>
     );
@@ -60,7 +60,22 @@ const AuthPage: React.FC = () => {
 
   return (
     <div>
-      <h2>{mode === "login" ? "Login" : "Register"}</h2>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 8,
+        }}
+      >
+        <h4 style={{ margin: 0 }}>{mode === "login" ? "Login" : "Register"}</h4>
+        <button
+          style={{ fontSize: 12, padding: "2px 8px", height: 28 }}
+          onClick={() => setMode(mode === "login" ? "register" : "login")}
+        >
+          Switch to {mode === "login" ? "Register" : "Login"}
+        </button>
+      </div>
       <form onSubmit={handleSubmit}>
         <input
           type="email"
@@ -89,9 +104,6 @@ const AuthPage: React.FC = () => {
           {mode === "login" ? "Login" : "Register"}
         </button>
       </form>
-      <button onClick={() => setMode(mode === "login" ? "register" : "login")}>
-        Switch to {mode === "login" ? "Register" : "Login"}
-      </button>
       {status === "failed" && <div style={{ color: "red" }}>{error}</div>}
       {registrationSuccess && (
         <div style={{ color: "green" }}>
