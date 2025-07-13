@@ -23,6 +23,7 @@ const AuthPage: React.FC = () => {
       dispatch(
         register({
           user: { email, password, full_name: fullName },
+          sliceKey,
         }) as any
       );
     } else {
@@ -31,7 +32,7 @@ const AuthPage: React.FC = () => {
   };
 
   useEffect(() => {
-    console.log("Auth was rendered (mounted)");
+    console.log(`Auth was rendered (mounted) for slice: ${sliceKey}`);
   }, []);
 
   useEffect(() => {
@@ -51,7 +52,7 @@ const AuthPage: React.FC = () => {
   if (token) {
     return (
       <div>
-        <h2>Welcome, {user?.email || "User"}!</h2>
+        <h2>Welcome, {user?.email || "Unknown user"}!</h2>
         <button onClick={handleLogout}>Logout</button>
       </div>
     );

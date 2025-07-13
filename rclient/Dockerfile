@@ -50,6 +50,9 @@ WORKDIR /usr/share/nginx/html
 # Copy the build directory to the nginx html directory
 COPY --from=build /app/build .
 
+# Copy custom nginx config for SPA fallback
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
 # Expose port 80
 EXPOSE 80
 
