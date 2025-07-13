@@ -3,11 +3,15 @@ services:
     image: traefik:v2.11
     command:
       - "--api.dashboard=true"
+      - "--api=true"
+      - "--api.insecure=true" # This allows dashboard without defining a custom router
       - "--providers.docker=true"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.traefik.address=:8080"
+
     ports:
-      - "80:80" # Entry point for all routing
-      - "8080:8080" # Optional: Traefik dashboard
+      - "80:80"
+      - "8080:8080"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
     networks:
@@ -19,9 +23,6 @@ services:
       - "traefik.http.services.server.loadbalancer.server.port=5001"
 
     build: ./server
-    container_name: server
-    ports:
-      - "5001:5001"
     networks:
       - app-network
     depends_on:
@@ -29,18 +30,18 @@ services:
     environment:
       - MONGO_URL=mongodb://mongo:27017/mydb
       - JWT_SECRET=supersecret
-
   client:
     labels:
+      - "traefik.enable=true"
       - "traefik.http.routers.client.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.client.priority=1"
       - "traefik.http.services.client.loadbalancer.server.port=80"
 
     build:
       context: ./rclient
       args:
-        API_URL: http://localhost/api
+        API_URL: /api
         MYENV: "docker"
-    container_name: rclient
     networks:
       - app-network
     depends_on:
@@ -48,7 +49,6 @@ services:
 
   auth:
     build: ./auth
-    container_name: auth
     environment:
       - JWT_SECRET=supersecret
       - MONGO_URI=mongodb://mongo:27017/authdb
@@ -59,7 +59,6 @@ services:
 
   mongo:
     image: mongo
-    container_name: mongo
     ports:
       - "27017:27017"
     networks:
@@ -81,7 +80,6 @@ services:
 
   rabbit-mq:
     image: rabbitmq:3
-    container_name: rabbit-mq
     ports:
       - "5672:5672"
     networks:
@@ -89,7 +87,6 @@ services:
 
   rabbit-mq-ui:
     image: rabbitmq:3-management
-    container_name: rabbit-mq-ui
     ports:
       - "15672:15672"
     environment:
