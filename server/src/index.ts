@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
-import { router as loginRouter } from "./routes/loginRoutes";
-import { router as crdtRouter } from "./routes/crdtRoutes";
+import loginRouter from "./routes/loginRoutes";
+import crdtRouter from "./routes/crdtRoutes";
 import cors from "cors";
 import bodyParser from "body-parser";
 import cookieSession from "cookie-session";

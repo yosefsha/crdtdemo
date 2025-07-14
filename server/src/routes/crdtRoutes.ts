@@ -1,11 +1,11 @@
-import express from "express";
+import { Router, Request, Response, NextFunction } from "express";
 // Update the import path if needed, or create the middleware/auth.ts file with verifyJWT exported
 import { verifyJWT } from "../routes/verifyJWT";
 import { crdtService } from "../services/crdtService";
 import { PixelDeltaPacket } from "../crdt/PixelDataCRDT";
 import { getCurrentTime } from "../services/helpers";
 
-const router = express.Router();
+const router = Router();
 
 // In-memory store for demo purposes
 const userCRDTs: Record<string, any> = {};
@@ -51,7 +51,7 @@ router.post("/sync", verifyJWT, async (req, res) => {
   try {
     console.log(`[${getCurrentTime()}] will sync deltas: `, deltas);
     const syncResult = await crdtService.syncUserDeltas(userId, deltas);
-    res.json({ deltas: syncResult });
+    res.json({ data: syncResult });
   } catch (error) {
     res.status(400).send(`[${getCurrentTime()}] Error syncing state`);
   }

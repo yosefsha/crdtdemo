@@ -203,7 +203,10 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({ pixelData }) => {
         await handleOtherUserSync(deltas);
         break;
       default:
-        // Unknown sync option
+        console.error(
+          `[${getTimestamp()}] [ERROR] Unknown sync option:`,
+          syncOption
+        );
         break;
     }
   }
