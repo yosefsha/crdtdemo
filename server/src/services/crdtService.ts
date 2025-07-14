@@ -3,6 +3,33 @@ import { getCurrentDateTimeString } from "./helpers";
 import { userCrdtDb, upsertUserCrdtDocument } from "./userCrdtDb";
 
 class CRDTService {
+  /**
+   * Merge another user's CRDT into the current user's CRDT and persist the result.
+   * @param userId The current user's ID
+   * @param otherCRDT The PixelDataCRDT instance to merge in
+   * @returns The merged CRDT for the current user
+   */
+  async mergeUserCRDTs(userId: string, otherCRDT: PixelDataCRDT) {
+    const userPixelData = this.getOrCreateUserPixelData(userId);
+    // Merge the other user's CRDT into the current user's CRDT
+    userPixelData.merge({
+      deltas: otherCRDT.state
+        ? Object.values((otherCRDT as any).state.map)
+        : [],
+      agentId: otherCRDT.id || "other",
+    });
+    // Persist the merged CRDT
+    await upsertUserCrdtDocument(
+      { _id: userId },
+      {
+        _id: userId,
+        userId,
+        timestamp: new Date(),
+        crdt: userPixelData.toJSON(),
+      }
+    );
+    return userPixelData;
+  }
   private static instance: CRDTService;
   private pixelData: PixelDataCRDT;
   private userPixelData: Record<string, PixelDataCRDT> = {};

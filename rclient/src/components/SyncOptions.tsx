@@ -8,10 +8,13 @@ import React, { useState } from "react";
  */
 interface SyncOptionsProps {
   name: string;
+  value?: SyncOption; // Optional value prop for controlled component
+  onChange?: (value: SyncOption) => void; // Optional onChange prop for
 }
+export type SyncOption = "remote" | "enrich" | "otherUser";
 
 const SyncOptions: React.FC<SyncOptionsProps> = ({ name }) => {
-  const [selected, setSelected] = useState("sync-remote");
+  const [selected, setSelected] = useState<SyncOption>("remote");
 
   return (
     <div
@@ -32,9 +35,9 @@ const SyncOptions: React.FC<SyncOptionsProps> = ({ name }) => {
         <input
           type="radio"
           name={name}
-          value="sync-remote"
-          checked={selected === "sync-remote"}
-          onChange={() => setSelected("sync-remote")}
+          value="remote"
+          checked={selected === "remote"}
+          onChange={() => setSelected("remote")}
         />
         <span style={{ fontSize: 12, marginTop: 4 }}>1. Sync Remote</span>
       </div>
@@ -48,9 +51,9 @@ const SyncOptions: React.FC<SyncOptionsProps> = ({ name }) => {
         <input
           type="radio"
           name={name}
-          value="sync-other-user"
-          checked={selected === "sync-other-user"}
-          onChange={() => setSelected("sync-other-user")}
+          value="otherUser"
+          checked={selected === "otherUser"}
+          onChange={() => setSelected("otherUser")}
         />
         <span style={{ fontSize: 12, marginTop: 4 }}>2. Sync Other User</span>
       </div>

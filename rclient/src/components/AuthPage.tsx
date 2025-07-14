@@ -63,7 +63,7 @@ const AuthPage: React.FC = () => {
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           gap: 12,
           marginBottom: 8,
         }}

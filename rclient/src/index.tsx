@@ -8,6 +8,8 @@ import config from "./config";
 
 console.log("running react client with config: ", config);
 
+// (JWT restore logic moved to App)
+
 const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement
 );

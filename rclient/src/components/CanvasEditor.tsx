@@ -173,7 +173,8 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     isDrawingRef.current = false;
     lastPosRef.current = null;
     console.log(
-      `[${getTimestamp()}] CanvasEditor:${id} - PointerUp event did set isDrawing to false and lastPos to null.`
+      `[${getTimestamp()}] CanvasEditor:${id} - PointerUp event did set isDrawing to false and lastPos to null. deltasRef.current:`,
+      deltasRef.current
     );
     onStateChange({ deltas: deltasRef.current, agentId: id });
     deltasRef.current = [];

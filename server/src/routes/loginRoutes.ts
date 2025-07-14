@@ -1,7 +1,20 @@
 import { Router, Request, Response, NextFunction } from "express";
+import { verifyJWT } from "./verifyJWT";
 import { RequestWithBody } from "./interfaces";
 
 const router = Router();
+
+// /me endpoint for JWT validation and user info
+router.get("/me", verifyJWT, (req: Request, res: Response): void => {
+  // The user info is attached to req by verifyJWT middleware
+  const user = (req as any).user;
+  if (!user) {
+    res.status(401).json({ error: "Invalid or expired token" });
+    return;
+  }
+  // You can customize what user info to return here
+  res.json({ user });
+});
 
 // Helper function to forward requests using fetch
 async function forwardRequest(path: string, req: Request, res: Response) {
