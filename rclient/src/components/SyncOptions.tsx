@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 
 /**
  * SyncOptions component: Three radio buttons for sync options.
@@ -8,73 +8,69 @@ import React, { useState } from "react";
  */
 interface SyncOptionsProps {
   name: string;
-  value?: SyncOption; // Optional value prop for controlled component
-  onChange?: (value: SyncOption) => void; // Optional onChange prop for
+  value: SyncOption; // required
+  onChange: (value: SyncOption) => void; // required
 }
 export type SyncOption = "remote" | "enrich" | "otherUser";
 
-const SyncOptions: React.FC<SyncOptionsProps> = ({ name }) => {
-  const [selected, setSelected] = useState<SyncOption>("remote");
-
-  return (
+const SyncOptions: React.FC<SyncOptionsProps> = ({ name, value, onChange }) => (
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "row",
+      alignItems: "flex-end",
+      gap: 24,
+    }}
+  >
     <div
       style={{
         display: "flex",
-        flexDirection: "row",
-        alignItems: "flex-end",
-        gap: 24,
+        flexDirection: "column",
+        alignItems: "center",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-        }}
-      >
-        <input
-          type="radio"
-          name={name}
-          value="remote"
-          checked={selected === "remote"}
-          onChange={() => setSelected("remote")}
-        />
-        <span style={{ fontSize: 12, marginTop: 4 }}>1. Sync Remote</span>
-      </div>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-        }}
-      >
-        <input
-          type="radio"
-          name={name}
-          value="otherUser"
-          checked={selected === "otherUser"}
-          onChange={() => setSelected("otherUser")}
-        />
-        <span style={{ fontSize: 12, marginTop: 4 }}>2. Sync Other User</span>
-      </div>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-        }}
-      >
-        <input
-          type="radio"
-          name={name}
-          value="enrich"
-          checked={selected === "enrich"}
-          onChange={() => setSelected("enrich")}
-        />
-        <span style={{ fontSize: 12, marginTop: 4 }}>3. Enrich</span>
-      </div>
+      <input
+        type="radio"
+        name={name}
+        value="remote"
+        checked={value === "remote"}
+        onChange={() => onChange("remote")}
+      />
+      <span style={{ fontSize: 12, marginTop: 4 }}>1. Sync Remote</span>
     </div>
-  );
-};
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+      }}
+    >
+      <input
+        type="radio"
+        name={name}
+        value="otherUser"
+        checked={value === "otherUser"}
+        onChange={() => onChange("otherUser")}
+      />
+      <span style={{ fontSize: 12, marginTop: 4 }}>2. Sync Other User</span>
+    </div>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+      }}
+    >
+      <input
+        type="radio"
+        name={name}
+        value="enrich"
+        checked={value === "enrich"}
+        onChange={() => onChange("enrich")}
+      />
+      <span style={{ fontSize: 12, marginTop: 4 }}>3. Enrich</span>
+    </div>
+  </div>
+);
 
 export default SyncOptions;

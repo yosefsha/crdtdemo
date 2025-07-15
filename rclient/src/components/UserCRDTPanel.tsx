@@ -65,6 +65,26 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({ pixelData }) => {
 
   const [sharedState, setSharedState] = React.useState(0);
 
+  // Store the list of users from the backend
+  const [users, setUsers] = React.useState<any[]>([]);
+  const [selectedOtherUser, setSelectedOtherUser] = React.useState<string>("");
+  const [syncOption, setSyncOption] = React.useState<SyncOption>("remote");
+
+  // Fetch users list on mount
+  React.useEffect(() => {
+    async function fetchUsers() {
+      try {
+        const res = await fetch(`${config.apiDomain}/users`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setUsers(data.users || []);
+      } catch (err) {
+        console.error(`[${getTimestamp()}] [ERROR] Failed to fetch users`, err);
+      }
+    }
+    fetchUsers();
+  }, []);
+
   async function handleRemoteSync(deltas: PixelDeltaPacket) {
     if (token) {
       try {
@@ -113,26 +133,6 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({ pixelData }) => {
       }
     }
   }
-
-  // Store the list of users from the backend
-  const [users, setUsers] = React.useState<any[]>([]);
-  const [selectedOtherUser, setSelectedOtherUser] = React.useState<string>("");
-  const [syncOption, setSyncOption] = React.useState<SyncOption>("remote");
-
-  // Fetch users list on mount
-  React.useEffect(() => {
-    async function fetchUsers() {
-      try {
-        const res = await fetch(`${config.apiDomain}/users`);
-        if (!res.ok) return;
-        const data = await res.json();
-        setUsers(data.users || []);
-      } catch (err) {
-        console.error(`[${getTimestamp()}] [ERROR] Failed to fetch users`, err);
-      }
-    }
-    fetchUsers();
-  }, []);
 
   async function handleOtherUserSync(deltas: PixelDeltaPacket) {
     if (token && selectedOtherUser) {
@@ -223,7 +223,20 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({ pixelData }) => {
       <SyncOptions
         name={`syncOption-${sliceKey}`}
         value={syncOption}
-        onChange={(val: SyncOption) => setSyncOption(val)}
+        onChange={(val: SyncOption) => {
+          console.info(
+            `[${getTimestamp()}] [INFO] setSyncOption called with value:`,
+            val
+          );
+          setSyncOption(val);
+          // Log after state update (with a timeout to ensure state is updated)
+          setTimeout(() => {
+            console.info(
+              `[${getTimestamp()}] [INFO] syncOption state after setSyncOption (from state):`,
+              syncOption
+            );
+          }, 0);
+        }}
       />
       {syncOption === "otherUser" && otherUsers.length > 0 && (
         <UsersDrop
