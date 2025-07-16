@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { getTimestamp } from "../helpers";
 import AuthPage from "./AuthPage";
 import CanvasEditor from "./CanvasEditor";
@@ -14,13 +14,12 @@ import { SyncOption } from "./SyncOptions";
 import type { AppUser } from "../types/app";
 
 interface UserCRDTPanelProps {
-  pixelData: PixelDataCRDT;
+  // pixelData: PixelDataCRDT;
   otherUserId: string; // Add this line
   onLoggedInUserId: (userId: string) => void;
 }
 
 const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
-  pixelData,
   otherUserId,
   onLoggedInUserId, // Callback to notify parent of logged-in user ID
 }) => {
@@ -31,6 +30,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     (state: RootState) =>
       (state as any)[sliceKey] as { user?: AppUser; token?: string }
   );
+  const pixelData = useMemo(() => new PixelDataCRDT(sliceKey), [token]);
 
   // Use empty string for userId if not present (e.g., before registration)
   const {
@@ -98,6 +98,21 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
   // Store the list of users from the backend
   const [syncOption, setSyncOption] = React.useState<SyncOption>("remote");
 
+  // Function to handle sync response from the server
+  function handleSyncResponse(data: any) {
+    console.debug(
+      `[${getTimestamp()}] [DEBUG] [remote] Handle sync response:`,
+      data
+    );
+    if (data && data.deltas) {
+      console.info(
+        `[${getTimestamp()}] [INFO] [remote] Merging server deltas into local CRDT`
+      );
+      pixelData.merge(data);
+      setSharedState((s) => s + 1); // Force re-render after sync
+    }
+  }
+
   async function handleRemoteSync(deltas: PixelDeltaPacket) {
     if (token) {
       try {
@@ -130,13 +145,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
           `[${getTimestamp()}] [DEBUG] [remote] Server response data:`,
           data
         );
-        if (data && data.deltas) {
-          console.info(
-            `[${getTimestamp()}] [INFO] [remote] Merging server deltas into local CRDT`
-          );
-          pixelData.merge(data);
-          setSharedState((s) => s + 1); // Force re-render after sync
-        }
+        handleSyncResponse(data);
         console.info(`[${getTimestamp()}] [INFO] [remote] Sync complete`);
       } catch (err) {
         console.error(
@@ -178,6 +187,8 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
           throw err;
         }
         // Optionally handle response (e.g., confirmation)
+        const data = await res.json();
+        handleSyncResponse(data);
         console.info(
           `[${getTimestamp()}] [INFO] [otherUser] Sync to other user complete`
         );

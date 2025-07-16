@@ -67,7 +67,7 @@ router.post("/sync-from-other", verifyJWT, async (req, res) => {
       userId,
       targetUser,
       deltasPresent: !!deltas,
-      userObj: user
+      userObj: user,
     });
     if (!userId) {
       res.status(401).json({ error: "User ID not found in JWT" });
@@ -93,10 +93,10 @@ router.post("/sync-from-other", verifyJWT, async (req, res) => {
     }
 
     // 3. Merge the other user's CRDT into the current user's CRDT
-    const mergedCRDT = await crdtService.mergeUserCRDTs(userId, otherCRDT);
+    const mergedDeltas = await crdtService.mergeUserCRDTs(userId, otherCRDT);
 
     // 4. Return the merged CRDT (or just confirmation)
-    res.json({ crdt: mergedCRDT });
+    res.json({ data: mergedDeltas });
   } catch (err) {
     console.error("[/sync-from-other] Error:", err);
     res.status(500).json({ error: "Internal server error" });

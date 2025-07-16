@@ -1,4 +1,4 @@
-import { PixelDataCRDT } from "../crdt/PixelDataCRDT";
+import { PixelDataCRDT, PixelDeltaPacket } from "../crdt/PixelDataCRDT";
 // TODO: Move PixelDataCRDT to a shared directory/package (e.g., ../../shared/crdt/PixelDataCRDT)
 // and import from there in both client and server for a single source of truth.
 import { getTimestamp } from "./helpers";
@@ -9,13 +9,9 @@ class CRDTService {
    * Merge another user's CRDT into the current user's CRDT and persist the result.
    * @param userId The current user's ID
    * @param otherCRDT The PixelDataCRDT instance to merge in
-   * @returns The merged CRDT for the current user
+   * @returns The merged DeltasPacket containing the deltas from the merge
    */
   async mergeUserCRDTs(userId: string, otherCRDT: PixelDataCRDT) {
-    console.debug(
-      `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] will get other userPixelData:`
-    );
-
     console.debug(
       `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 1: Get or create userPixelData for userId:`,
       userId
@@ -60,7 +56,8 @@ class CRDTService {
       `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 7: Merge and save complete for userId:`,
       userId
     );
-    return userPixelData;
+    // Return the merged deltas packet
+    return mergeResult;
   }
   private static instance: CRDTService;
   private pixelData: PixelDataCRDT;

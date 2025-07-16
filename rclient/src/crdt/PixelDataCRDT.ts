@@ -15,6 +15,13 @@ export interface PixelDelta extends IDelta<RGB | null> {
 export class PixelDataCRDT implements ICRDT<RGB, PixelDelta> {
   private state: LWWMap<RGB>;
   private id: string;
+
+  public getState(): LWWMap<RGB> {
+    return this.state;
+  }
+  public getId(): string {
+    return this.id;
+  }
   // private history: PixelDelta[] = [];
 
   constructor(id: string) {
