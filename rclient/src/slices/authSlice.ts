@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import config from "../config";
+import { AppUser } from "../types/app";
 
 // Factory for per-user JWT key
 const tokenKey = (sliceKey: string) => `jwtToken_${sliceKey}`;
@@ -39,8 +40,8 @@ const login = createAsyncThunk<
   const data = await response.json();
   if (response.ok && data.token) {
     console.info(
-      `Login successful for slice: ${sliceKey} with token:`,
-      data.token,
+      `Login successful for slice: ${sliceKey} with data:`,
+      data,
       `Storing in localStorage`
     );
     // Store the JWT token in localStorage with a unique key per slice
@@ -69,8 +70,8 @@ const logout = createAsyncThunk<{ sliceKey: string }, { sliceKey: string }>(
 // Factory to create initial state per slice
 
 // Auth state type for type safety
-interface AuthState {
-  user: any | null;
+export interface AuthState {
+  user: AppUser | null;
   token: string | null;
   status: string;
   error: string | null;

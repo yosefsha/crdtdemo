@@ -7,21 +7,51 @@ import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import { useUserAuthContext } from "./UserAuthContext";
 import config from "../config";
+
 import SyncOptions from "./SyncOptions";
 import { SyncOption } from "./SyncOptions";
-import UsersDrop from "./UsersDrop";
+
+import type { AppUser } from "../types/app";
 
 interface UserCRDTPanelProps {
   pixelData: PixelDataCRDT;
+  otherUserId: string; // Add this line
+  onLoggedInUserId: (userId: string) => void;
 }
 
-const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({ pixelData }) => {
+const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
+  pixelData,
+  otherUserId,
+  onLoggedInUserId, // Callback to notify parent of logged-in user ID
+}) => {
   const { sliceKey } = useUserAuthContext();
+
+  // user should be of type AppUser | undefined
   const { user, token } = useSelector(
-    (state: RootState) => (state as any)[sliceKey]
+    (state: RootState) =>
+      (state as any)[sliceKey] as { user?: AppUser; token?: string }
   );
 
-  const userName = user?.username || "";
+  // Use empty string for userId if not present (e.g., before registration)
+  const {
+    userId,
+    email: userEmail,
+    name: userName,
+  } = user || { userId: "", email: "", name: "" };
+
+  React.useEffect(() => {
+    console.debug(
+      `[${getTimestamp()}] [DEBUG] UserCRDTPanel: user object:`,
+      user
+    );
+    setSharedState((s) => s + 1); // Force re-render when user changes
+  }, [user]);
+
+  React.useEffect(() => {
+    if (userId) {
+      onLoggedInUserId(userId);
+    }
+  }, [userId, onLoggedInUserId]);
   React.useEffect(() => {
     console.info(
       `[${getTimestamp()}] [INFO] UserCRDTPanel: Rendered for sliceKey:`,
@@ -66,24 +96,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({ pixelData }) => {
   const [sharedState, setSharedState] = React.useState(0);
 
   // Store the list of users from the backend
-  const [users, setUsers] = React.useState<any[]>([]);
-  const [selectedOtherUser, setSelectedOtherUser] = React.useState<string>("");
   const [syncOption, setSyncOption] = React.useState<SyncOption>("remote");
-
-  // Fetch users list on mount
-  React.useEffect(() => {
-    async function fetchUsers() {
-      try {
-        const res = await fetch(`${config.apiDomain}/users`);
-        if (!res.ok) return;
-        const data = await res.json();
-        setUsers(data.users || []);
-      } catch (err) {
-        console.error(`[${getTimestamp()}] [ERROR] Failed to fetch users`, err);
-      }
-    }
-    fetchUsers();
-  }, []);
 
   async function handleRemoteSync(deltas: PixelDeltaPacket) {
     if (token) {
@@ -135,12 +148,18 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({ pixelData }) => {
   }
 
   async function handleOtherUserSync(deltas: PixelDeltaPacket) {
-    if (token && selectedOtherUser) {
+    if (token && otherUserId) {
       try {
+        // Debug log before sending to API
+        console.debug("[handleOtherUserSync] About to send to API:", {
+          deltas,
+          targetUser: otherUserId,
+          token: token ? "[present]" : "[missing]",
+        });
         console.info(
           `[${getTimestamp()}] [INFO] [otherUser] Sending deltas to other user:`,
           deltas,
-          `targetUser: ${selectedOtherUser}`
+          `targetUser: ${otherUserId}`
         );
         const res = await fetch(`${config.apiDomain}/sync-from-other`, {
           method: "POST",
@@ -148,7 +167,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({ pixelData }) => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ deltas, targetUser: selectedOtherUser }),
+          body: JSON.stringify({ deltas, targetUser: otherUserId }),
         });
         if (!res.ok) {
           const err = await res.json();
@@ -170,7 +189,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({ pixelData }) => {
       }
     } else {
       console.warn(
-        `[${getTimestamp()}] [WARN] No other user selected for sync`
+        `[${getTimestamp()}] [WARN] No other user specified for sync`
       );
     }
   }
@@ -179,7 +198,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({ pixelData }) => {
     // Implement enrich sync logic here
   }
 
-  async function handleStateChange(deltas: PixelDeltaPacket) {
+  function handleStateChange(deltas: PixelDeltaPacket) {
     console.debug(
       `[${getTimestamp()}] [DEBUG] UserCRDTPanel:${sliceKey} - handleStateChange called with deltas:`,
       deltas
@@ -194,13 +213,13 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({ pixelData }) => {
 
     switch (syncOption) {
       case "remote":
-        await handleRemoteSync(deltas);
+        handleRemoteSync(deltas);
         break;
       case "enrich":
         handleEnrichSync(deltas);
         break;
       case "otherUser":
-        await handleOtherUserSync(deltas);
+        handleOtherUserSync(deltas);
         break;
       default:
         console.error(
@@ -211,11 +230,6 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({ pixelData }) => {
     }
   }
 
-  // Only show UsersDrop if sync option is 'otherUser' and there is at least one other user
-  const otherUsers = users.filter(
-    (u) => (u.userId || u._id) !== userName.toLowerCase()
-  );
-
   return (
     <>
       {userName ? <h2>{userName}&apos;s Page</h2> : null}
@@ -223,37 +237,15 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({ pixelData }) => {
       <SyncOptions
         name={`syncOption-${sliceKey}`}
         value={syncOption}
-        onChange={(val: SyncOption) => {
-          console.info(
-            `[${getTimestamp()}] [INFO] setSyncOption called with value:`,
-            val
-          );
-          setSyncOption(val);
-          // Log after state update (with a timeout to ensure state is updated)
-          setTimeout(() => {
-            console.info(
-              `[${getTimestamp()}] [INFO] syncOption state after setSyncOption (from state):`,
-              syncOption
-            );
-          }, 0);
-        }}
+        onChange={(val: SyncOption) => setSyncOption(val)}
       />
-      {syncOption === "otherUser" && otherUsers.length > 0 && (
-        <UsersDrop
-          users={users}
-          userName={userName}
-          selectedOtherUser={selectedOtherUser}
-          setSelectedOtherUser={setSelectedOtherUser}
-          sliceKey={sliceKey}
-        />
-      )}
       <CanvasEditor
-        id={userName.toLowerCase()}
+        id={userName ? userName.toLowerCase() : ""}
         width={200}
         height={200}
         color={[0, 0, 0]}
         pixelData={pixelData}
-        onStateChange={handleStateChange}
+        onStateChange={token ? handleStateChange : () => {}}
         sharedState={sharedState}
         cursor="default"
       />

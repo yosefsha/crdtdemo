@@ -1,17 +1,15 @@
-export interface User {
-  jwt: string;
-  name: string;
+// Central user type for the app
+// Central user type for the app, matching backend response
+export interface AppUser {
+  userId: string; // assigned by server after registration
   email: string;
+  name: string;
 }
 
-export interface UserCredentioals {
+export interface UserCredentials {
   name?: string;
   email: string;
   password: string;
 }
-export interface AppProps {
-  currentUser: User | null;
-  auth: boolean;
-  setCurrentUser: (user: User | null) => void;
-  setAuth: (auth: boolean) => void;
-}
+
+// Remove legacy AppProps; per-panel state should be managed via Redux or local state

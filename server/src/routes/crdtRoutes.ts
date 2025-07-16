@@ -63,6 +63,12 @@ router.post("/sync-from-other", verifyJWT, async (req, res) => {
     const user = (req as any).user;
     const userId = user && (user.user_id || user.id || user.email || user.sub);
     const { deltas, targetUser } = req.body;
+    console.log("/sync-from-other called", {
+      userId,
+      targetUser,
+      deltasPresent: !!deltas,
+      userObj: user
+    });
     if (!userId) {
       res.status(401).json({ error: "User ID not found in JWT" });
       return;
@@ -78,9 +84,11 @@ router.post("/sync-from-other", verifyJWT, async (req, res) => {
     }
 
     // 2. Load the target user's CRDT data
+    console.log("Attempting to load target user CRDT", { targetUser });
     const otherCRDT = await crdtService.loadUserPixelData(targetUser);
     if (!otherCRDT) {
-      res.status(404).json({ error: "Target user CRDT not found" });
+      console.warn("Target user CRDT not found", { targetUser });
+      res.status(404).json({ error: "Target user CRDT not found", targetUser });
       return;
     }
 

@@ -22,7 +22,7 @@ const AuthPage: React.FC = () => {
     if (mode === "register") {
       dispatch(
         register({
-          user: { email, password, full_name: fullName },
+          user: { email, password, name: fullName },
           sliceKey,
         }) as any
       );

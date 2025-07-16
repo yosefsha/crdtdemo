@@ -31,19 +31,18 @@ def auth_register():
     user = data.get("user")
     email = user.get("email") if user else None
     password = user.get("password") if user else None
-    full_name = user.get("full_name") if user else None
-    logger.info(f"Registration attempt for email: {email}, full_name: {full_name}")
-    first_name, last_name = (full_name.split(" ") if full_name else (None, None))
+    name = user.get("name") if user else None
+    logger.info(f"Registration attempt for email: {email}, name: {name}")
 
-    if not first_name or not password or not email:
-        logger.warning("Registration failed: First name,  email, and password are required")
-        return jsonify({"error": "First name, last name, email, and password are required"}), 400
+    if not name or not password or not email:
+        logger.warning("Registration failed: name, email, and password are required")
+        return jsonify({"error": "Name, email, and password are required"}), 400
 
     if users.find_one({"email": email}):
         logger.warning(f"Registration failed: User with email '{email}' already exists")
         return jsonify({"error": "User with this email already exists"}), 400
 
-    users.insert_one({"email": email, "password": password, "first_name": first_name, "last_name": last_name})
+    users.insert_one({"email": email, "password": password, "name": name})
     logger.info(f"User with email '{email}' registered successfully.")
     return jsonify({"message": f"User with email '{email}' registered successfully."}), 201
 
@@ -78,9 +77,9 @@ def login():
     logger.info(f"Login successful for username: {email}")
     #  return user object without password but with token
     user_info = {
+        "userId": str(user_from_db.get("_id")),
         "email": user_from_db["email"],
-        "first_name": user_from_db.get("first_name"),
-        "last_name": user_from_db.get("last_name")
+        "name": user_from_db.get("name")
     }
     logger.info(f"Generated token for user: {user_info}")
     return jsonify({"token": token, "user": user_info}), 200
