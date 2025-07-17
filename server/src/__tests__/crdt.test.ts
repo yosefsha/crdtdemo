@@ -1,6 +1,6 @@
 import { CRDT, LWWMap, LWWRegister, State } from "../crdt/CRDTTypes";
 
-describe.skip("CRDT", () => {
+describe("CRDT", () => {
   // it("should be able to create a CRDT object", () => {
   //   const crdt = new LWWRegister("aa", ["aa", 1, "bb"]);
   //   expect(crdt).toBeDefined();
@@ -27,6 +27,6 @@ describe.skip("CRDT", () => {
     const state2: State<string> = { a: [id2, 2, "aa"], c: [id2, 1, "cc"] };
     const lwwmap2 = new LWWMap(id2, state2);
     lwwmap1.merge(lwwmap2.state);
-    expect(lwwmap1.value).toEqual({ a: "aa", b: "bb", c: "cc" });
+    expect(lwwmap1.values).toEqual({ a: "aa", b: "bb", c: "cc" });
   });
 });

@@ -13,11 +13,11 @@ export interface PixelDelta extends IDelta<RGB | null> {
 }
 
 export class PixelDataCRDT implements ICRDT<RGB, PixelDelta> {
-  private state: LWWMap<RGB>;
+  private dataMap: LWWMap<RGB>;
   private id: string;
 
   public getState(): LWWMap<RGB> {
-    return this.state;
+    return this.dataMap;
   }
   public getId(): string {
     return this.id;
@@ -26,22 +26,30 @@ export class PixelDataCRDT implements ICRDT<RGB, PixelDelta> {
 
   constructor(id: string) {
     this.id = id;
-    this.state = new LWWMap<RGB>(id, {});
+    this.dataMap = new LWWMap<RGB>(id, {});
   }
 
   get(key: string): RGB {
     // const key = this.getKey(x, y);
-    return this.state.get(key) || [255, 255, 255];
+    return this.dataMap.get(key) || [255, 255, 255];
   }
-
+  /**
+   * Sets a pixel at (x, y) to the given color.
+   * If the pixel is already set to the same color, returns null.
+   * Otherwise, returns a PixelDelta object with the new color and timestamp.
+   * @param key - The key in the format "x,y".
+   * @param color - The RGB color to set the pixel to, or null to clear the pixel.
+   * @returns PixelDelta object if the pixel was changed, null if it was already set to the same color.
+   * @throws Error if the key is not in the correct
+   */
   set(key: string, color: RGB | null): PixelDelta | null {
     const [x, y] = PixelDataCRDT.getXYfromKey(key);
-    const currentPixel = this.state.get(key);
+    const currentPixel = this.dataMap.get(key);
     if (currentPixel && currentPixel.toString() === color?.toString()) {
       return null;
     }
     const timestamp = Date.now();
-    this.state.set(key, color);
+    this.dataMap.set(key, color);
     const delta: PixelDelta = { x, y, value: color, timestamp };
     // this.history.push(delta);
     return delta;
@@ -55,7 +63,7 @@ export class PixelDataCRDT implements ICRDT<RGB, PixelDelta> {
       const key = PixelDataCRDT.getKey(delta.x, delta.y);
 
       // Merge using LWWMap (it ensures timestamp-based resolution)
-      if (this.state.set(key, delta.value)) {
+      if (this.dataMap.set(key, delta.value)) {
         newDeltas.push(delta);
       }
     });
@@ -65,16 +73,15 @@ export class PixelDataCRDT implements ICRDT<RGB, PixelDelta> {
     return { deltas: newDeltas, agentId: this.id };
   }
 
-  // getDeltas returns an array of PixelDelta objects of the current state
+  // getDeltas returns an array of PixelDelta objects of the current dataMap
   getAllDeltas(): PixelDeltaPacket {
     const deltas: PixelDelta[] = [];
-    for (const [key, register] of Object.entries(this.state.state)) {
+    for (const [key, register] of Object.entries(this.dataMap.state)) {
       const [x, y] = key.split(",").map(Number);
       const [, timestamp, color] = register; // Extract timestamp from LWWRegister
 
       deltas.push({ x, y, value: color, timestamp });
     }
-
     return { deltas, agentId: this.id };
   }
 
@@ -83,7 +90,7 @@ export class PixelDataCRDT implements ICRDT<RGB, PixelDelta> {
    */
   getDeltaSince(timestamp: number): PixelDeltaPacket {
     const deltas: PixelDelta[] = [];
-    for (const [key, register] of Object.entries(this.state.state)) {
+    for (const [key, register] of Object.entries(this.dataMap.state)) {
       const [x, y] = key.split(",").map(Number);
       const [, ts, color] = register;
       if (ts > timestamp) {
@@ -99,7 +106,7 @@ export class PixelDataCRDT implements ICRDT<RGB, PixelDelta> {
   toJSON(): any {
     return {
       id: this.id,
-      state: this.state.state, // LWWMap's internal state
+      state: this.dataMap.state, // LWWMap's internal state
     };
   }
 
@@ -109,7 +116,10 @@ export class PixelDataCRDT implements ICRDT<RGB, PixelDelta> {
   static fromJSON(json: any): PixelDataCRDT {
     const crdt = new PixelDataCRDT(json.id || "loaded");
     // LWWMap constructor accepts id and state
-    crdt.state = new (crdt.state.constructor as any)(crdt.id, json.state || {});
+    crdt.dataMap = new (crdt.dataMap.constructor as any)(
+      crdt.id,
+      json.state || {}
+    );
     return crdt;
   }
 

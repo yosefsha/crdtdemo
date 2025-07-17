@@ -55,15 +55,15 @@ export class LWWMap<T> {
     }
   }
 
-  get value(): Value<T> {
-    const value: Value<T> = {};
+  get values(): Values<T> {
+    const values: Values<T> = {};
 
     // build up an object where each value is set to the value of the register at the corresponding key
     for (const [key, register] of this.#data.entries()) {
-      if (register.value !== null) value[key] = register.value;
+      if (register.value !== null) values[key] = register.value;
     }
 
-    return value;
+    return values;
   }
 
   get state() {
@@ -119,7 +119,7 @@ export class LWWMap<T> {
 // State is a map of keys to the full state of the corresponding register
 export type State<T> = Record<string, LWWRegister<T | null>["state"]>;
 
-export type Value<T> = {
+export type Values<T> = {
   [key: string]: T;
 };
 // State is a record of keys to the full state of the corresponding register
