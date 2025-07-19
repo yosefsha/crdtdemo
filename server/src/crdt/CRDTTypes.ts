@@ -27,18 +27,24 @@ export class LWWRegister<T> {
     return true;
   }
 
-  merge(state: [peer: string, timestamp: number, value: T]) {
+  merge(state: [peer: string, timestamp: number, value: T]): boolean {
     const [remotePeer, remoteTimestamp] = state;
-    const [localPeer, localTimestamp] = this.state;
+    const [localPeer, localTimestamp, localValue] = this.state;
 
     // if the local timestamp is greater than the remote timestamp, discard the incoming value
-    if (localTimestamp > remoteTimestamp) return;
+    if (localTimestamp > remoteTimestamp) return false;
 
     // if the timestamps are the same but the local peer ID is greater than the remote peer ID, discard the incoming value
-    if (localTimestamp === remoteTimestamp && localPeer > remotePeer) return;
+    if (localTimestamp === remoteTimestamp && localPeer > remotePeer)
+      return false;
+
+    // if the value is the same, do not count as an update
+    if (localTimestamp === remoteTimestamp && localValue === state[2])
+      return false;
 
     // otherwise, overwrite the local state with the remote state
     this.state = state;
+    return true;
   }
 }
 
@@ -94,7 +100,7 @@ export class LWWMap<T> {
       return register.set(value);
     }
     // otherwise, instantiate a new `LWWRegister` with the value
-    this.#data.set(key, new LWWRegister(this.id, [this.id, 1, value]));
+    this.#data.set(key, new LWWRegister(this.id, [this.id, Date.now(), value]));
     return true;
   }
 
@@ -103,16 +109,23 @@ export class LWWMap<T> {
     this.#data.get(key)?.set(null);
   }
 
-  merge(state: State<T>) {
-    // recursively merge each key's register with the incoming state for that key
+  /**
+   * Merges the given state into the map, returning a list of keys that were updated.
+   */
+  merge(state: State<T>): string[] {
+    const updatedKeys: string[] = [];
     for (const [key, remote] of Object.entries(state)) {
       const local = this.#data.get(key);
-
-      // if the register already exists, merge it with the incoming state
-      if (local) local.merge(remote);
-      // otherwise, instantiate a new `LWWRegister` with the incoming state
-      else this.#data.set(key, new LWWRegister(this.id, remote));
+      if (local) {
+        if (local.merge(remote)) {
+          updatedKeys.push(key);
+        }
+      } else {
+        this.#data.set(key, new LWWRegister(this.id, remote));
+        updatedKeys.push(key);
+      }
     }
+    return updatedKeys;
   }
 }
 
@@ -132,10 +145,15 @@ export interface IDelta<T> {
 export interface ICRDT<T, D extends IDelta<T>> {
   get(key: string): T | null;
   set(key: string, value: T): D | null;
-  merge(packet: { deltas: D[]; agentId: string }): {
+  /**
+   * Bidirectional merge: applies incoming deltas, returns both applied and missing deltas for the peer.
+   * If packet.peerPixelTimestamps is provided, computes missing deltas for the peer.
+   */
+  merge(packet: {
     deltas: D[];
     agentId: string;
-  };
+    peerTimestamps?: Record<string, number>;
+  }): { applied: D[]; missing: D[] };
   getAllDeltas(): { deltas: D[]; agentId: string };
   getDeltaSince(timestamp: number): { deltas: D[]; agentId: string };
 }

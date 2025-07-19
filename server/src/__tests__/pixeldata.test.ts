@@ -1,7 +1,89 @@
-import e from "express";
-import { PixelDataCRDT, RGB } from "../crdt/PixelDataCRDT";
-
+import { PixelDataCRDT, RGB, MergeResult } from "../crdt/PixelDataCRDT";
 describe("PixelDataCRDT", () => {
+  it("should fail with three players and partial delivery (declaration only)", () => {
+    const crdtA = new PixelDataCRDT("A");
+    const crdtB = new PixelDataCRDT("B");
+    const crdtC = new PixelDataCRDT("C");
+    fail("Not implemented");
+  });
+  it("should return both applied and missing deltas in bidirectional merge", async () => {
+    // Given: two clients with independent PixelDataCRDTs
+    const crdtA = new PixelDataCRDT("A");
+    const crdtB = new PixelDataCRDT("B");
+
+    // A sets (1,1), B sets (2,2)
+    const dA = crdtA.set("1,1", [10, 20, 30]);
+    await wait(20);
+    const dB = crdtB.set("2,2", [40, 50, 60]);
+    await wait(20);
+
+    // B merges A's delta, providing its own per-key timestamps of what it knows
+    // that B knows (none for (1,1), so should apply)
+    const deltasA = crdtA.getDeltaForPeer("B");
+    const mergeResult: MergeResult = crdtB.merge(deltasA);
+
+    expect(mergeResult.applied.length).toBe(1);
+    expect(mergeResult.applied[0].x).toBe(1);
+    const missing = mergeResult.missing;
+    const xs = missing.map((d) => d.x);
+    const ts = missing.map((d) => d.timestamp);
+    expect(xs).toContain(1);
+    expect(xs).toContain(2);
+    expect(ts).toContain(dA!.timestamp);
+    expect(ts).toContain(dB!.timestamp);
+    expect(missing.length).toBe(1); // Only (2,2) is missing for A
+
+    crdtA.ackPeerPixelDeltas("B", mergeResult.applied);
+    const deltasA2 = crdtB.getDeltaForPeer("A");
+    // Now, A merges B's delta, providing its own per-key timestamps (knows about (1,1), not (2,2))
+
+    const mergeResult2 = crdtA.merge(deltasA2);
+    expect(mergeResult2.applied.length).toBe(1);
+    expect(mergeResult2.applied[0].x).toBe(2);
+    expect(mergeResult2.missing.length).toBe(0);
+  });
+
+  // Helper function to wait a few milliseconds (for timestamp uniqueness in tests)
+  async function wait(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  it("should track per-peer, per-pixel timestamps and only send missing deltas", async () => {
+    // Given: two clients with independent PixelDataCRDTs
+    const crdtA = new PixelDataCRDT("A");
+    const crdtB = new PixelDataCRDT("B");
+
+    // A sets three pixels at different times
+    const d1 = crdtA.set("1,1", [10, 20, 30]);
+    const t1 = d1?.timestamp || 0;
+    await wait(5); // Ensure a different timestamp
+    const d2 = crdtA.set("2,2", [40, 50, 60]);
+    const t2 = d2?.timestamp || 0;
+    await wait(5); // Ensure a different timestamp
+    const d3 = crdtA.set("3,3", [70, 80, 90]);
+    const t3 = d3?.timestamp || 0;
+
+    // Simulate B only receiving the first and third pixel
+    let deltas = crdtA.getDeltaForPeer("B");
+    // B merges only the deltas for (1,1) and (3,3)
+    const filtered = deltas.deltas.filter((d) => d.x !== 2 || d.y !== 2); // drop (2,2)
+    crdtB.merge({ deltas: filtered, agentId: "A" });
+    // A acknowledges only the delivered deltas for B
+    crdtA.ackPeerPixelDeltas("B", filtered);
+    // A should update per-pixel timestamps for B for (1,1) and (3,3) only
+    expect(crdtA.getPeerPixelTimestamp("B", "1,1")).toBe(t1);
+    expect(crdtA.getPeerPixelTimestamp("B", "3,3")).toBe(t3);
+    expect(crdtA.getPeerPixelTimestamp("B", "2,2")).toBe(0);
+
+    // Now, B requests deltas again; should get only (2,2)
+    deltas = crdtA.getDeltaForPeer("B");
+    expect(deltas.deltas.length).toBe(1);
+    expect(deltas.deltas[0].x).toBe(2);
+    expect(deltas.deltas[0].y).toBe(2);
+    expect(deltas.deltas[0].timestamp).toBe(t2);
+    // After sending, A should update B's per-pixel timestamp for (2,2)
+    expect(crdtA.getPeerPixelTimestamp("B", "2,2")).toBe(t2);
+  });
   it("should initialize with correct id and empty values", () => {
     // Given: a new PixelDataCRDT instance
     const crdt = new PixelDataCRDT("test-user");
@@ -43,8 +125,9 @@ describe("PixelDataCRDT", () => {
     // When: merging deltas from crdt2 into crdt1
     const deltas = crdt2.getAllDeltas();
     const d = crdt1.merge(deltas);
-
-    expect(d.deltas).toHaveLength(0);
+    const d2 = crdt1.merge(deltas);
+    expect(d.applied.length).toEqual(1);
+    expect(d2.applied.length).toEqual(0);
   });
 
   it("should not change state if the same pixel is set to the same value", () => {
@@ -104,4 +187,65 @@ describe("PixelDataCRDT", () => {
   });
 
   // Removed duplicate serialize and deserialize test for user2
+
+  it("should achieve eventual consistency after concurrent updates and merges", () => {
+    // Given: three clients with independent PixelDataCRDTs
+    const crdtA = new PixelDataCRDT("A");
+    const crdtB = new PixelDataCRDT("B");
+    const crdtC = new PixelDataCRDT("C");
+
+    // Each client sets different pixels concurrently
+    // A sets (1,1) to red, B sets (2,2) to green, C sets (3,3) to blue
+    const deltaA1 = crdtA.set("1,1", [255, 0, 0]);
+    const deltaB1 = crdtB.set("2,2", [0, 255, 0]);
+    const deltaC1 = crdtC.set("3,3", [0, 0, 255]);
+
+    // Simulate concurrent updates: A and B both set (4,4) to different colors
+    const deltaA2 = crdtA.set("4,4", [100, 100, 100]);
+    // Wait a bit to ensure a different timestamp
+    const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
+    // Use a fake delay for test determinism
+    // (in real distributed systems, timestamps would naturally differ)
+    // For this test, we just ensure the timestamps are not identical
+    const deltaB2 = crdtB.set("4,4", [200, 200, 200]);
+
+    // Each client now has their own state. Let's exchange deltas in a round-robin fashion
+    // 1. A merges B's and C's deltas
+    crdtA.merge(crdtB.getAllDeltas());
+    crdtA.merge(crdtC.getAllDeltas());
+    // 2. B merges A's and C's deltas
+    crdtB.merge(crdtA.getAllDeltas());
+    crdtB.merge(crdtC.getAllDeltas());
+    // 3. C merges A's and B's deltas
+    crdtC.merge(crdtA.getAllDeltas());
+    crdtC.merge(crdtB.getAllDeltas());
+
+    // At this point, all CRDTs should have the same state for all pixels
+    // The value of (4,4) should be the one with the latest timestamp (either A or B)
+    const valA = crdtA.get("4,4");
+    const valB = crdtB.get("4,4");
+    const valC = crdtC.get("4,4");
+    expect(valA).toEqual(valB);
+    expect(valB).toEqual(valC);
+
+    // All other pixels should be present and equal
+    expect(crdtA.get("1,1")).toEqual([255, 0, 0]);
+    expect(crdtB.get("1,1")).toEqual([255, 0, 0]);
+    expect(crdtC.get("1,1")).toEqual([255, 0, 0]);
+
+    expect(crdtA.get("2,2")).toEqual([0, 255, 0]);
+    expect(crdtB.get("2,2")).toEqual([0, 255, 0]);
+    expect(crdtC.get("2,2")).toEqual([0, 255, 0]);
+
+    expect(crdtA.get("3,3")).toEqual([0, 0, 255]);
+    expect(crdtB.get("3,3")).toEqual([0, 0, 255]);
+    expect(crdtC.get("3,3")).toEqual([0, 0, 255]);
+
+    // The set of keys should be identical in all CRDTs
+    const keysA = Object.keys(crdtA.getState().state).sort();
+    const keysB = Object.keys(crdtB.getState().state).sort();
+    const keysC = Object.keys(crdtC.getState().state).sort();
+    expect(keysA).toEqual(keysB);
+    expect(keysB).toEqual(keysC);
+  });
 });

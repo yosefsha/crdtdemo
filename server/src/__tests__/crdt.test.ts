@@ -12,7 +12,6 @@ describe("CRDT", () => {
     const crdt2 = new LWWRegister("c", ["aa", 2, "cc"]);
     crdt1.merge(crdt2.state);
     expect(crdt1.value).toEqual("cc");
-    console.log("ooooooooooooo");
   });
 
   // this is a test that creates lwwmap object and merges to anothe lwwmap object
