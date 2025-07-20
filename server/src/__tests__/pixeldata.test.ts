@@ -30,6 +30,87 @@ describe("PixelDataCRDT", () => {
     const deltasA2 = crdtA.getDeltaForPeer("B");
     expect(deltasA2).toBeNull();
   });
+
+  it("should break with three CRDTs using the same agent id (ambiguous state)", async () => {
+    // This test demonstrates that using the same agent id for multiple peers leads to ambiguous state and lost updates.
+    // Given: three clients with the same agent id
+    const crdtA = new PixelDataCRDT("A");
+    const crdtB = new PixelDataCRDT("A");
+    const crdtC = new PixelDataCRDT("A");
+    // Each sets a different pixel
+    const dA = crdtA.set("1,1", [10, 20, 30]);
+    await wait(10);
+    const dB = crdtB.set("2,2", [40, 50, 60]);
+    await wait(10);
+    const dC = crdtC.set("3,3", [70, 80, 90]);
+    await wait(10);
+
+    // Exchange deltas in a round-robin fashion, as if all are peers
+    // A merges B and C
+    const deltasForB = crdtA.getDeltaForPeer("A");
+    let mergeResultAB = crdtB.merge(deltasForB!);
+    crdtA.handleMergeResult(mergeResultAB, "A");
+    let mergeResultAC = crdtA.merge(crdtC.getDeltaForPeer("A"));
+    crdtA.handleMergeResult(mergeResultAC, "A");
+    // B merges A and C
+    let mergeResultBA = crdtB.merge(crdtA.getAllDeltas());
+    crdtB.handleMergeResult(mergeResultBA, "A");
+    let mergeResultBC = crdtB.merge(crdtC.getAllDeltas());
+    crdtB.handleMergeResult(mergeResultBC, "A");
+    // C merges A and B
+    let mergeResultCA = crdtC.merge(crdtA.getAllDeltas());
+    crdtC.handleMergeResult(mergeResultCA, "A");
+    let mergeResultCB = crdtC.merge(crdtB.getAllDeltas());
+    crdtC.handleMergeResult(mergeResultCB, "A");
+
+    // Now, try to synchronize deltas using getDeltaForPeer("A")
+    // All CRDTs will think the remote "A" already has all updates, so no deltas will be sent
+    const deltasA = crdtA.getDeltaForPeer("A");
+    const deltasB = crdtB.getDeltaForPeer("A");
+    const deltasC = crdtC.getDeltaForPeer("A");
+    // At least one of these should be non-null if the protocol worked, but all will be null
+    expect(deltasA).toBeNull();
+    expect(deltasB).toBeNull();
+    expect(deltasC).toBeNull();
+
+    // Now, set a new pixel in crdtA and try to sync to B and C
+    const dA2 = crdtA.set("4,4", [1, 2, 3]);
+    // Try to get deltas for B and C (but both are "A")
+    const deltasAforB = crdtA.getDeltaForPeer("A");
+    // This will be null, so B and C will never receive the update
+    expect(deltasAforB).toBeNull();
+    expect(deltasAforB).toBeNull();
+  });
+  it("should merge deltas from one peer to another and track per-pixel timestamps", async () => {
+    // Given: two clients with independent PixelDataCRDTs
+    const crdtA = new PixelDataCRDT("A");
+    const crdtB = new PixelDataCRDT("A");
+
+    // A sets (1,1), B sets (2,2)
+    const dA = crdtA.set("1,1", [10, 20, 30]);
+    await wait(20);
+    const dB = crdtB.set("2,2", [40, 50, 60]);
+    await wait(20);
+
+    // B merges A's delta, providing its own per-key timestamps of what it knows
+    // that B knows (none for (1,1), so should apply)
+    const deltasA = crdtA.getDeltaForPeer("A");
+    expect(deltasA).not.toBeNull();
+    const mergeResult: MergeResult = crdtB.merge(deltasA!);
+
+    expect(mergeResult.applied.length).toBe(1);
+    expect(mergeResult.applied[0].x).toBe(1);
+    const missingXs = mergeResult.missing.map((d) => d.x);
+    const missingTs = mergeResult.missing.map((d) => d.timestamp);
+    expect(missingXs).toContain(2);
+    expect(missingTs).toContain(dB!.timestamp);
+    expect(mergeResult.missing.length).toBe(1); // Only (2,2) is missing for A
+
+    crdtA.handleMergeResult(mergeResult, "A");
+
+    const deltasA2 = crdtA.getDeltaForPeer("A");
+    expect(deltasA2).toBeNull();
+  });
   it.skip("should fail with three players and partial delivery (declaration only)", () => {
     const crdtA = new PixelDataCRDT("A");
     const crdtB = new PixelDataCRDT("B");
