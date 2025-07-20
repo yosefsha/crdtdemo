@@ -27,18 +27,24 @@ export class LWWRegister<T> {
     return true;
   }
 
-  merge(state: [peer: string, timestamp: number, value: T]) {
+  merge(state: [peer: string, timestamp: number, value: T]): boolean {
     const [remotePeer, remoteTimestamp] = state;
-    const [localPeer, localTimestamp] = this.state;
+    const [localPeer, localTimestamp, localValue] = this.state;
 
     // if the local timestamp is greater than the remote timestamp, discard the incoming value
-    if (localTimestamp > remoteTimestamp) return;
+    if (localTimestamp > remoteTimestamp) return false;
 
     // if the timestamps are the same but the local peer ID is greater than the remote peer ID, discard the incoming value
-    if (localTimestamp === remoteTimestamp && localPeer > remotePeer) return;
+    if (localTimestamp === remoteTimestamp && localPeer > remotePeer)
+      return false;
+
+    // if the value is the same, do not count as an update
+    if (localTimestamp === remoteTimestamp && localValue === state[2])
+      return false;
 
     // otherwise, overwrite the local state with the remote state
     this.state = state;
+    return true;
   }
 }
 
@@ -55,15 +61,15 @@ export class LWWMap<T> {
     }
   }
 
-  get value(): Value<T> {
-    const value: Value<T> = {};
+  get values(): Values<T> {
+    const values: Values<T> = {};
 
     // build up an object where each value is set to the value of the register at the corresponding key
     for (const [key, register] of this.#data.entries()) {
-      if (register.value !== null) value[key] = register.value;
+      if (register.value !== null) values[key] = register.value;
     }
 
-    return value;
+    return values;
   }
 
   get state() {
@@ -103,23 +109,30 @@ export class LWWMap<T> {
     this.#data.get(key)?.set(null);
   }
 
-  merge(state: State<T>) {
-    // recursively merge each key's register with the incoming state for that key
+  /**
+   * Merges the given state into the map, returning a list of keys that were updated.
+   */
+  merge(state: State<T>): string[] {
+    const updatedKeys: string[] = [];
     for (const [key, remote] of Object.entries(state)) {
       const local = this.#data.get(key);
-
-      // if the register already exists, merge it with the incoming state
-      if (local) local.merge(remote);
-      // otherwise, instantiate a new `LWWRegister` with the incoming state
-      else this.#data.set(key, new LWWRegister(this.id, remote));
+      if (local) {
+        if (local.merge(remote)) {
+          updatedKeys.push(key);
+        }
+      } else {
+        this.#data.set(key, new LWWRegister(this.id, remote));
+        updatedKeys.push(key);
+      }
     }
+    return updatedKeys;
   }
 }
 
 // State is a map of keys to the full state of the corresponding register
 export type State<T> = Record<string, LWWRegister<T | null>["state"]>;
 
-export type Value<T> = {
+export type Values<T> = {
   [key: string]: T;
 };
 // State is a record of keys to the full state of the corresponding register

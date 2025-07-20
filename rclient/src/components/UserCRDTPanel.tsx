@@ -99,26 +99,30 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
   const [syncOption, setSyncOption] = React.useState<SyncOption>("remote");
 
   // Function to handle sync response from the server
-  function handleSyncResponse(data: any) {
+  function handleSyncResponse(reqData: any, resData?: any) {
     console.debug(
       `[${getTimestamp()}] [DEBUG] [remote] Handle sync response:`,
-      data
+      resData
     );
-    if (data && data.deltas) {
-      console.info(
-        `[${getTimestamp()}] [INFO] [remote] Merging server deltas into local CRDT`
-      );
-      pixelData.merge(data);
+    console.info(
+      `[${getTimestamp()}] [INFO] [remote] Merging server deltas into local CRDT`
+    );
+    // Merge the deltas into the local CRDT
+    // Assuming resData contains the deltas in the expected format
+    if (!resData || !resData.deltas) {
+      pixelData.merge(resData.deltas);
       setSharedState((s) => s + 1); // Force re-render after sync
     }
   }
 
-  async function handleRemoteSync(deltas: PixelDeltaPacket) {
+  async function handleRemoteSync() {
     if (token) {
       try {
+        // Get only the deltas that the server hasn't acknowledged yet
+        const deltasToSend = pixelData.getDeltaForPeer("server");
         console.info(
           `[${getTimestamp()}] [INFO] [remote] Sending deltas to server:`,
-          deltas
+          deltasToSend
         );
         const res = await fetch(`${config.apiDomain}/sync`, {
           method: "POST",
@@ -126,7 +130,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ deltas }),
+          body: JSON.stringify({ deltas: deltasToSend }),
         });
         console.info(
           `[${getTimestamp()}] [INFO] [remote] Server responded, status:`,
@@ -145,6 +149,8 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
           `[${getTimestamp()}] [DEBUG] [remote] Server response data:`,
           data
         );
+        // Acknowledge only the deltas that were actually delivered (assume all for now)
+        pixelData.ackPeerPixelDeltas("server", deltasToSend.deltas);
         handleSyncResponse(data);
         console.info(`[${getTimestamp()}] [INFO] [remote] Sync complete`);
       } catch (err) {
@@ -156,27 +162,36 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     }
   }
 
-  async function handleOtherUserSync(deltas: PixelDeltaPacket) {
+  async function handleOtherUserSync() {
     if (token && otherUserId) {
       try {
+        // Get only the deltas that the other user hasn't acknowledged yet
+        const deltasToSend = pixelData.getDeltaForPeer(otherUserId);
         // Debug log before sending to API
         console.debug("[handleOtherUserSync] About to send to API:", {
-          deltas,
+          deltas: deltasToSend,
           targetUser: otherUserId,
           token: token ? "[present]" : "[missing]",
         });
         console.info(
           `[${getTimestamp()}] [INFO] [otherUser] Sending deltas to other user:`,
-          deltas,
+          deltasToSend,
           `targetUser: ${otherUserId}`
         );
+
+        // Send deltas to the other user via server API
+        const reqData = {
+          deltas: deltasToSend,
+          targetUser: otherUserId,
+        };
         const res = await fetch(`${config.apiDomain}/sync-from-other`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ deltas, targetUser: otherUserId }),
+          // Send deltas to the other user
+          body: JSON.stringify(reqData),
         });
         if (!res.ok) {
           const err = await res.json();
@@ -187,8 +202,8 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
           throw err;
         }
         // Optionally handle response (e.g., confirmation)
-        const data = await res.json();
-        handleSyncResponse(data);
+        const resData = await res.json();
+        handleSyncResponse(reqData, resData);
         console.info(
           `[${getTimestamp()}] [INFO] [otherUser] Sync to other user complete`
         );
@@ -221,16 +236,15 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     );
 
     // No need to apply deltas locally; CanvasEditor already updates pixelData.
-
     switch (syncOption) {
       case "remote":
-        handleRemoteSync(deltas);
+        handleRemoteSync();
         break;
       case "enrich":
         handleEnrichSync(deltas);
         break;
       case "otherUser":
-        handleOtherUserSync(deltas);
+        handleOtherUserSync();
         break;
       default:
         console.error(
