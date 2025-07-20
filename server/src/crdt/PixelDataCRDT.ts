@@ -162,18 +162,18 @@ export class PixelDataCRDT implements ICRDT<RGB, PixelDelta> {
       );
     }
 
-    // Compute missing deltas for the peer, if peerTimestamps is provided (per-pixel vector clock)
+    // Compute missing deltas for the peer
     let missing: PixelDelta[] = [];
-    if (packet.peerTimestamps) {
-      for (const [key, register] of Object.entries(this.dataMap.state)) {
-        const [x, y] = key.split(",").map(Number);
-        const [, ts, color] = register;
-        const peerTs = packet.peerTimestamps[key] || 0;
-        if (ts > peerTs) {
-          missing.push({ x, y, value: color, timestamp: ts });
-        }
+    const peerPixels = this.peerPixelTimestamps[packet.agentId] || {};
+    for (const [key, register] of Object.entries(this.dataMap.state)) {
+      const [x, y] = key.split(",").map(Number);
+      const [, ts, color] = register;
+      const peerTs = peerPixels[key] || 0;
+      if (ts > peerTs) {
+        missing.push({ x, y, value: color, timestamp: ts });
       }
     }
+
     return {
       applied,
       missing,
@@ -201,7 +201,7 @@ export class PixelDataCRDT implements ICRDT<RGB, PixelDelta> {
     for (const [key, register] of Object.entries(this.dataMap.state)) {
       const [x, y] = key.split(",").map(Number);
       const [, ts, color] = register;
-      if (ts > timestamp) {
+      if (ts >= timestamp) {
         deltas.push({ x, y, value: color, timestamp: ts });
       }
     }
