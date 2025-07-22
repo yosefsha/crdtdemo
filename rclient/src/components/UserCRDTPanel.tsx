@@ -2,7 +2,11 @@ import React, { useMemo } from "react";
 import { getTimestamp } from "../helpers";
 import AuthPage from "./AuthPage";
 import CanvasEditor from "./CanvasEditor";
-import { PixelDataCRDT, PixelDeltaPacket } from "../crdt/PixelDataCRDT";
+import {
+  MergeResult,
+  PixelDataCRDT,
+  PixelDeltaPacket,
+} from "../crdt/PixelDataCRDT";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import { useUserAuthContext } from "./UserAuthContext";
@@ -30,7 +34,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     (state: RootState) =>
       (state as any)[sliceKey] as { user?: AppUser; token?: string }
   );
-  const pixelData = useMemo(() => new PixelDataCRDT(sliceKey), [token]);
+  // Assume sliceKey is agentId, and we use a unique replicaId per tab (could use Date.now() or uuid)
 
   // Use empty string for userId if not present (e.g., before registration)
   const {
@@ -39,6 +43,18 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     name: userName,
   } = user || { userId: "", email: "", name: "" };
 
+  const replicaId = useMemo(
+    () => `${userId}_client`, // Use userId for consistency
+    [userId]
+  );
+  const serverReplicaId = useMemo(
+    () => `${userId}_server`, // Use userId for server replica
+    [userId]
+  );
+  const pixelData = useMemo(
+    () => new PixelDataCRDT(userId, replicaId),
+    [token]
+  );
   React.useEffect(() => {
     console.debug(
       `[${getTimestamp()}] [DEBUG] UserCRDTPanel: user object:`,
@@ -78,10 +94,16 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
           throw err;
         }
         const data = await res.json();
-        if (data.crdt) {
-          const loaded = PixelDataCRDT.fromJSON(data.crdt);
-          Object.assign(pixelData, loaded);
-        }
+        console.debug(
+          `[${getTimestamp()}] [DEBUG] Loaded user CRDT from server:`,
+          data
+        );
+
+        pixelData.merge(data.deltas); // Merge deltas into pixelData
+        console.info(
+          `[${getTimestamp()}] [INFO] UserCRDTPanel: Merged deltas from server`
+        );
+
         setSharedState((s) => s + 1); // Always force re-render after sync attempt
       } catch (err) {
         console.error(
@@ -96,33 +118,44 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
   const [sharedState, setSharedState] = React.useState(0);
 
   // Store the list of users from the backend
+  // Add 'replica' to SyncOption type if you want to support intra-agent sync in the UI
   const [syncOption, setSyncOption] = React.useState<SyncOption>("remote");
-
-  // Function to handle sync response from the server
-  function handleSyncResponse(reqData: any, resData?: any) {
+  type SyncType = "agent" | "replica";
+  // Function to handle sync response from the server or peer
+  function handleSyncResponse(
+    syncType: SyncType,
+    resData: MergeResult | null = null,
+    agentId?: string,
+    replicaId?: string
+  ): PixelDeltaPacket | null {
     console.debug(
-      `[${getTimestamp()}] [DEBUG] [remote] Handle sync response:`,
+      `[${getTimestamp()}] [DEBUG] [${syncType}] Handle sync response:`,
       resData
     );
     console.info(
-      `[${getTimestamp()}] [INFO] [remote] Merging server deltas into local CRDT`
+      `[${getTimestamp()}] [INFO] [${syncType}] Merging deltas into local CRDT`
     );
-    // Merge the deltas into the local CRDT
-    // Assuming resData contains the deltas in the expected format
-    if (!resData || !resData.deltas) {
-      pixelData.merge(resData.deltas);
-      setSharedState((s) => s + 1); // Force re-render after sync
+    let res: PixelDeltaPacket | null = null;
+    if (resData) {
+      if (syncType === "agent" && agentId) {
+        res = pixelData.handleMergeAgentResult(resData, agentId); // agent-level merge
+      } else if (syncType === "replica" && replicaId) {
+        res = pixelData.handleMergeReplicaResult(resData, replicaId); // replica-level merge
+      }
+      setSharedState((s) => s + 1);
     }
+    return res;
   }
 
+  // Inter-agent sync (with server or other agent)
   async function handleRemoteSync() {
     if (token) {
       try {
-        // Get only the deltas that the server hasn't acknowledged yet
-        const deltasToSend = pixelData.getDeltaForPeer("server");
+        // Get only the deltas that the server (other agent) hasn't acknowledged yet
+        const deltaPacket = pixelData.getDeltaForReplica(serverReplicaId);
         console.info(
-          `[${getTimestamp()}] [INFO] [remote] Sending deltas to server:`,
-          deltasToSend
+          `[${getTimestamp()}] [INFO] [remote] Sending replica-level deltas to server:`,
+          deltaPacket
         );
         const res = await fetch(`${config.apiDomain}/sync`, {
           method: "POST",
@@ -130,58 +163,41 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ deltas: deltasToSend }),
+          body: JSON.stringify({ deltas: deltaPacket }),
         });
-        console.info(
-          `[${getTimestamp()}] [INFO] [remote] Server responded, status:`,
-          res.status
-        );
         if (!res.ok) {
           const err = await res.json();
-          console.error(
-            `[${getTimestamp()}] [ERROR] [remote] Server error response:`,
-            err
-          );
           throw err;
         }
         const data = await res.json();
-        console.debug(
-          `[${getTimestamp()}] [DEBUG] [remote] Server response data:`,
-          data
+        const morePacket = handleSyncResponse(
+          "agent",
+          data,
+          undefined,
+          serverReplicaId
         );
-        // Acknowledge only the deltas that were actually delivered (assume all for now)
-        pixelData.ackPeerPixelDeltas("server", deltasToSend.deltas);
-        handleSyncResponse(data);
-        console.info(`[${getTimestamp()}] [INFO] [remote] Sync complete`);
+        if (morePacket) {
+          handleRemoteSync(); // Recursively handle any additional deltas
+        }
+        console.info(
+          `[${getTimestamp()}] [INFO] [remote] Agent-level sync complete`
+        );
       } catch (err) {
         console.error(
-          `[${getTimestamp()}] [ERROR] Failed to sync deltas to server`,
+          `[${getTimestamp()}] [ERROR] Failed to sync agent-level deltas to server`,
           err
         );
       }
     }
   }
 
+  // Inter-agent sync (with another user/agent)
   async function handleOtherUserSync() {
     if (token && otherUserId) {
       try {
-        // Get only the deltas that the other user hasn't acknowledged yet
-        const deltasToSend = pixelData.getDeltaForPeer(otherUserId);
-        // Debug log before sending to API
-        console.debug("[handleOtherUserSync] About to send to API:", {
-          deltas: deltasToSend,
-          targetUser: otherUserId,
-          token: token ? "[present]" : "[missing]",
-        });
-        console.info(
-          `[${getTimestamp()}] [INFO] [otherUser] Sending deltas to other user:`,
-          deltasToSend,
-          `targetUser: ${otherUserId}`
-        );
-
-        // Send deltas to the other user via server API
+        const deltaPacket = pixelData.getDeltaForAgent(otherUserId);
         const reqData = {
-          deltas: deltasToSend,
+          deltas: deltaPacket,
           targetUser: otherUserId,
         };
         const res = await fetch(`${config.apiDomain}/sync-from-other`, {
@@ -190,26 +206,20 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          // Send deltas to the other user
           body: JSON.stringify(reqData),
         });
         if (!res.ok) {
           const err = await res.json();
-          console.error(
-            `[${getTimestamp()}] [ERROR] [otherUser] Server error response:`,
-            err
-          );
           throw err;
         }
-        // Optionally handle response (e.g., confirmation)
         const resData = await res.json();
-        handleSyncResponse(reqData, resData);
+        handleSyncResponse("agent", resData, otherUserId);
         console.info(
-          `[${getTimestamp()}] [INFO] [otherUser] Sync to other user complete`
+          `[${getTimestamp()}] [INFO] [otherUser] Agent-level sync to other user complete`
         );
       } catch (err) {
         console.error(
-          `[${getTimestamp()}] [ERROR] Failed to sync deltas to other user via server`,
+          `[${getTimestamp()}] [ERROR] Failed to sync agent-level deltas to other user via server`,
           err
         );
       }
@@ -220,16 +230,11 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     }
   }
 
-  function handleEnrichSync(deltas: PixelDeltaPacket) {
+  function handleEnrichSync() {
     // Implement enrich sync logic here
   }
 
-  function handleStateChange(deltas: PixelDeltaPacket) {
-    console.debug(
-      `[${getTimestamp()}] [DEBUG] UserCRDTPanel:${sliceKey} - handleStateChange called with deltas:`,
-      deltas
-    );
-
+  function handleStateChange() {
     console.info(
       `[${getTimestamp()}] [INFO] UserCRDTPanel:${sliceKey} - Selected sync option:`,
       syncOption
@@ -241,7 +246,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
         handleRemoteSync();
         break;
       case "enrich":
-        handleEnrichSync(deltas);
+        handleEnrichSync();
         break;
       case "otherUser":
         handleOtherUserSync();
@@ -253,6 +258,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
         );
         break;
     }
+    // BroadcastChannel logic removed as requested
   }
 
   return (
@@ -265,7 +271,6 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
         onChange={(val: SyncOption) => setSyncOption(val)}
       />
       <CanvasEditor
-        id={userName ? userName.toLowerCase() : ""}
         width={200}
         height={200}
         color={[0, 0, 0]}

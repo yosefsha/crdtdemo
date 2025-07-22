@@ -1,274 +1,298 @@
-import { LWWMap, ICRDT, IDelta } from "./CRDTTypes";
+// Replica-aware CRDT with peer tracking, agent awareness, and delta filtering
+// This CRDT is designed for pixel data, allowing multiple agents to modify pixel colors
+// while tracking changes across replicas and agents.
 
-export type RGB = [number, number, number];
+import { getTimestamp } from "../services/helpers";
+import { LWWMap } from "./CRDTTypes";
+import type { RGB, ReplicaId, AgentId, Key } from "./CRDTTypes";
 
-export interface PixelDeltaPacket {
-  deltas: PixelDelta[];
-  agentId: string;
-  // Optional: peer's per-pixel vector clock (for bidirectional sync)
-  peerTimestamps?: Record<string, number>;
+export interface PixelDelta {
+  x: number;
+  y: number;
+  timestamp: number;
+  value: RGB | null;
+  replicaId: ReplicaId;
+  agentId: AgentId;
 }
+
 export interface MergeResult {
   applied: PixelDelta[];
   missing: PixelDelta[];
-  // Optional: peer's per-pixel vector clock (for bidirectional sync)
-  peerTimestamps?: Record<string, number>;
 }
-export interface PixelDelta extends IDelta<RGB | null> {
-  x: number;
-  y: number;
+export interface PixelDeltaPacket {
+  deltas: PixelDelta[];
+  fromReplica: ReplicaId;
+  fromAgent: AgentId;
 }
 
-export class PixelDataCRDT implements ICRDT<RGB, PixelDelta> {
-  private dataMap: LWWMap<RGB>;
-  private id: string;
-  // Per-peer last sync timestamps (simple optimization)
-  private peerTimestamps: Record<string, number> = {};
-  // Per-peer, per-pixel vector clock: { peerId: { pixelKey: timestamp } }
-  private peerPixelTimestamps: Record<string, Record<string, number>> = {};
+export interface PixelDataCRDTInfo {
+  agentId: AgentId;
+  replicaId: ReplicaId;
+}
 
-  public getState(): LWWMap<RGB> {
-    return this.dataMap;
-  }
-  public getId(): string {
-    return this.id;
-  }
+export class PixelDataCRDT {
+  private replicaId: ReplicaId;
+  private agentId: AgentId;
+  private map: LWWMap<RGB>;
+  // For other agents: agent-level vector clock (Record<Key, number>)
+  // For this agent: per-replica vector clocks (Record<ReplicaId, Record<Key, number>>)
+  // For other agents: agent-level vector clock (Record<AgentId, Record<Key, number>>)
+  private agentTimestamps: Record<AgentId, Record<Key, number>> = {};
+  // For this agent: per-replica vector clocks (Record<ReplicaId, Record<Key, number>>)
+  private replicaTimestamps: Record<ReplicaId, Record<Key, number>> = {};
 
-  public get values(): Record<string, [string, number, RGB | null]> {
-    return this.dataMap.state;
-  }
-  // private history: PixelDelta[] = [];
-
-  constructor(id: string) {
-    this.id = id;
-    this.dataMap = new LWWMap<RGB>(id, {});
+  constructor(agentId: AgentId, replicaId: ReplicaId) {
+    this.agentId = agentId;
+    this.replicaId = replicaId;
+    this.map = new LWWMap();
   }
 
-  /**
-   * Get deltas for a specific peer since the last sync with that peer.
-   * Updates the peer's last sync timestamp to the latest delta sent.
-   */
-  getDeltaForPeer(peerId: string): PixelDeltaPacket | null {
-    // Use per-pixel vector clock for this peer
-    const peerPixels = this.peerPixelTimestamps[peerId] || {};
+  static getKey(x: number, y: number): string {
+    return `${x},${y}`;
+  }
+
+  static getXYfromKey(key: string): [number, number] {
+    const [x, y] = key.split(",").map(Number);
+    return [x, y];
+  }
+
+  static fromJSON(
+    data: PixelDataCRDTInfo & {
+      state: Record<Key, [ReplicaId, number, RGB | null]>;
+      agentTimestamps: Record<AgentId, Record<Key, number>>;
+      replicaTimestamps: Record<ReplicaId, Record<Key, number>>;
+    }
+  ): PixelDataCRDT {
+    const crdt = new PixelDataCRDT(data.agentId, data.replicaId);
+    crdt.map.merge(data.state || {});
+    crdt.agentTimestamps = data.agentTimestamps || {};
+    crdt.replicaTimestamps = data.replicaTimestamps || {};
+    return crdt;
+  }
+  toJSON() {
+    return {
+      agentId: this.agentId,
+      replicaId: this.replicaId,
+      state: this.map.state,
+      agentTimestamps: this.agentTimestamps,
+      replicaTimestamps: this.replicaTimestamps,
+    };
+  }
+
+  set(key: Key, color: RGB | null): PixelDelta | null {
+    const old = this.map.get(key);
+    if (old && old.toString() === color?.toString()) return null;
+    const ts = Date.now();
+    this.map.set(this.replicaId, key, color);
+    const [x, y] = PixelDataCRDT.getXYfromKey(key);
+    return {
+      x,
+      y,
+      timestamp: ts,
+      value: color,
+      replicaId: this.replicaId,
+      agentId: this.agentId,
+    };
+  }
+
+  // AGENT-LEVEL SYNC: Used for inter-agent sync (never tracks other agents' replicas)
+  getDeltaForAgent(agentId: AgentId): PixelDeltaPacket | null {
     const deltas: PixelDelta[] = [];
-    for (const [key, register] of Object.entries(this.dataMap.state)) {
-      const [x, y] = key.split(",").map(Number);
-      const [, ts, color] = register;
-      const lastSeen = peerPixels[key] || 0;
-      if (ts > lastSeen) {
-        deltas.push({ x, y, value: color, timestamp: ts });
+    const agentClock = this.agentTimestamps[agentId] || {};
+    for (const [key, [repId, timestamp, value]] of Object.entries(
+      this.map.state
+    )) {
+      const seen = agentClock[key] || 0;
+      if (timestamp > seen) {
+        const [x, y] = PixelDataCRDT.getXYfromKey(key);
+        deltas.push({
+          x,
+          y,
+          timestamp,
+          value,
+          replicaId: repId,
+          agentId: this.agentId,
+        });
       }
     }
     return deltas.length === 0
       ? null
       : {
           deltas,
-          agentId: this.id,
-          peerTimestamps: this.peerPixelTimestamps[peerId] || {},
+          fromReplica: this.replicaId,
+          fromAgent: this.agentId,
         };
   }
 
-  /**
-   * Update the last sync timestamp for a peer (e.g., after receiving deltas from them).
-   */
-  updatePeerTimestamp(peerId: string, timestamp: number) {
-    this.peerTimestamps[peerId] = Math.max(
-      this.peerTimestamps[peerId] || 0,
-      timestamp
-    );
-    // Optionally, update all per-pixel timestamps for this peer to at least this value
-    if (!this.peerPixelTimestamps[peerId])
-      this.peerPixelTimestamps[peerId] = {};
-    for (const key of Object.keys(this.dataMap.state)) {
-      this.peerPixelTimestamps[peerId][key] = Math.max(
-        this.peerPixelTimestamps[peerId][key] || 0,
-        timestamp
+  // REPLICA-LEVEL SYNC: Used for intra-agent sync (between replicas of the same agent)
+  getDeltaForReplica(replicaId: ReplicaId): PixelDeltaPacket | null {
+    // Only allow intra-agent replica sync
+    if (!this.replicaTimestamps[replicaId]) {
+      this.replicaTimestamps[replicaId] = {};
+      console.info(
+        `[${getTimestamp()}] [INFO][PixelDataCRDT] getDeltaForReplica: Created new replica timestamp record for replicaId:`,
+        replicaId
       );
     }
-  }
+    const replicaMap = this.replicaTimestamps[replicaId];
 
-  /**
-   * Get the last sync timestamp for a peer.
-   */
-  getPeerTimestamp(peerId: string): number {
-    return this.peerTimestamps[peerId] || 0;
-  }
-
-  /**
-   * Get the last per-pixel timestamp for a peer and pixel key.
-   */
-  getPeerPixelTimestamp(peerId: string, key: string): number {
-    return this.peerPixelTimestamps[peerId]?.[key] || 0;
-  }
-
-  get(key: string): RGB {
-    // const key = this.getKey(x, y);
-    return this.dataMap.get(key) || [255, 255, 255];
-  }
-  /**
-   * Sets a pixel at (x, y) to the given color.
-   * If the pixel is already set to the same color, returns null.
-   * Otherwise, returns a PixelDelta object with the new color and timestamp.
-   * @param key - The key in the format "x,y".
-   * @param color - The RGB color to set the pixel to, or null to clear the pixel.
-   * @returns PixelDelta object if the pixel was changed, null if it was already set to the same color.
-   * @throws Error if the key is not in the correct
-   */
-  set(key: string, color: RGB | null): PixelDelta | null {
-    const [x, y] = PixelDataCRDT.getXYfromKey(key);
-    const currentPixel = this.dataMap.get(key);
-    if (currentPixel && currentPixel.toString() === color?.toString()) {
-      return null;
-    }
-    const timestamp = Date.now();
-    this.dataMap.set(key, color);
-    const delta: PixelDelta = { x, y, value: color, timestamp };
-    // this.history.push(delta);
-    return delta;
-  }
-
-  /**
-   * Bidirectional merge: applies incoming deltas, returns both applied and missing deltas for the peer.
-   * If packet.peerTimestamps is provided, computes missing deltas for the peer (per-pixel vector clock).
-   */
-  merge(packet: {
-    deltas: PixelDelta[];
-    agentId: string;
-    peerTimestamps?: Record<string, number>;
-  }): MergeResult {
-    const incomingState: Record<string, [string, number, RGB | null]> = {};
-    for (const delta of packet.deltas) {
-      const key = PixelDataCRDT.getKey(delta.x, delta.y);
-      incomingState[key] = [packet.agentId, delta.timestamp, delta.value];
-    }
-    // Use the new LWWMap.merge which returns updated keys
-    const updatedKeys = this.dataMap.merge(incomingState);
-    // Only return deltas for keys that were actually updated
-    const applied = packet.deltas.filter((delta) => {
-      const key = PixelDataCRDT.getKey(delta.x, delta.y);
-      return updatedKeys.includes(key);
-    });
-
-    // --- NEW: After receiving data from peer, update peerPixelTimestamps for that peer ---
-    if (!this.peerPixelTimestamps[packet.agentId]) {
-      this.peerPixelTimestamps[packet.agentId] = {};
-    }
-    for (const delta of packet.deltas) {
-      const key = PixelDataCRDT.getKey(delta.x, delta.y);
-      this.peerPixelTimestamps[packet.agentId][key] = Math.max(
-        this.peerPixelTimestamps[packet.agentId][key] || 0,
-        delta.timestamp
-      );
-    }
-
-    // Compute missing deltas for the peer
-    let missing: PixelDelta[] = [];
-    const peerPixels = this.peerPixelTimestamps[packet.agentId] || {};
-    for (const [key, register] of Object.entries(this.dataMap.state)) {
-      const [x, y] = key.split(",").map(Number);
-      const [, ts, color] = register;
-      const peerTs = peerPixels[key] || 0;
-      if (ts > peerTs) {
-        missing.push({ x, y, value: color, timestamp: ts });
+    const deltas: PixelDelta[] = [];
+    for (const [key, [repId, timestamp, value]] of Object.entries(
+      this.map.state
+    )) {
+      const seen = replicaMap[key] || 0;
+      if (timestamp > seen) {
+        const [x, y] = PixelDataCRDT.getXYfromKey(key);
+        deltas.push({
+          x,
+          y,
+          timestamp,
+          value,
+          replicaId: repId,
+          agentId: this.agentId,
+        });
       }
     }
-
-    return {
-      applied,
-      missing,
-      peerTimestamps: this.peerPixelTimestamps[packet.agentId] || {},
-    };
+    const res =
+      deltas.length === 0
+        ? null
+        : {
+            deltas,
+            fromReplica: this.replicaId,
+            fromAgent: this.agentId,
+          };
+    console.info(
+      `[${getTimestamp()}] [INFO][PixelDataCRDT] getDeltaForReplica: Fetched deltas for replicaId:`,
+      replicaId
+    );
+    return res;
   }
 
-  // getDeltas returns an array of PixelDelta objects of the current dataMap
+  /*
+   * Merges a PixelDeltaPacket into the CRDT state.
+   * Applies deltas to the LWWMap and updates agent-level clocks.
+   * Returns a MergeResult containing applied and missing deltas.
+   * This method is used for syncing between different agents.
+   * It applies the deltas from the packet to the local state and computes
+   * which deltas were applied and which are missing for the sender.
+        };
+  }
+
+  /*
+   * Merges a PixelDeltaPacket into the CRDT state.
+   * Applies deltas to the LWWMap and updates agent-level clocks.
+   * Returns a MergeResult containing applied and missing deltas.
+   * This method is used for syncing between different agents.
+   * It applies the deltas from the packet to the local state and computes
+   * which deltas were applied and which are missing for the sender.
+   * @param packet - The PixelDeltaPacket containing deltas to merge.
+   * @returns MergeResult containing applied and missing deltas.
+   */
+  merge(packet: PixelDeltaPacket): MergeResult {
+    if (!packet || !packet.deltas || packet.deltas.length === 0) {
+      return { applied: [], missing: [] };
+    }
+    const applied: PixelDelta[] = [];
+    const missing: PixelDelta[] = [];
+    for (const delta of packet.deltas) {
+      const key = PixelDataCRDT.getKey(delta.x, delta.y);
+      const updated = this.map.merge({
+        [key]: [delta.replicaId, delta.timestamp, delta.value],
+      });
+      if (updated.includes(key)) applied.push(delta);
+      // Update agent-level clock for the sender
+      let agentClock = this.agentTimestamps[packet.fromAgent];
+      if (!agentClock) {
+        agentClock = {};
+        this.agentTimestamps[packet.fromAgent] = agentClock;
+      }
+      agentClock[key] = Math.max(agentClock[key] || 0, delta.timestamp);
+    }
+    // Compute missing for the sender
+    const senderClock = this.agentTimestamps[packet.fromAgent] || {};
+    for (const [key, [replicaId, timestamp, value]] of Object.entries(
+      this.map.state
+    )) {
+      const seen = senderClock[key] || 0;
+      if (timestamp > seen) {
+        const [x, y] = PixelDataCRDT.getXYfromKey(key);
+        missing.push({
+          x,
+          y,
+          timestamp,
+          value,
+          replicaId,
+          agentId: this.agentId,
+        });
+      }
+    }
+    return { applied, missing };
+  }
+  // REPLICA-LEVEL SYNC: Used for intra-agent sync (between replicas of the same agent)
+  handleMergeReplicaResult(
+    result: MergeResult,
+    fromReplica: ReplicaId
+  ): PixelDeltaPacket | null {
+    // Only for this agent: maintain per-replica clocks
+    const replicaEntry = (this.replicaTimestamps[fromReplica] ??= {});
+    for (const delta of result.applied.concat(result.missing)) {
+      const key = PixelDataCRDT.getKey(delta.x, delta.y);
+      replicaEntry[key] = Math.max(replicaEntry[key] || 0, delta.timestamp);
+    }
+    return this.getDeltaForReplica(fromReplica);
+  }
+  // AGENT-LEVEL SYNC: Used for inter-agent sync (never tracks other agents' replicas)
+  handleMergeAgentResult(
+    result: MergeResult,
+    fromAgent: AgentId
+  ): PixelDeltaPacket | null {
+    // Only update agent-level clock for the other agent
+    let agentClock = this.agentTimestamps[fromAgent];
+    if (!agentClock) {
+      agentClock = {};
+      this.agentTimestamps[fromAgent] = agentClock;
+    }
+    for (const delta of result.applied.concat(result.missing)) {
+      const key = PixelDataCRDT.getKey(delta.x, delta.y);
+      agentClock[key] = Math.max(agentClock[key] || 0, delta.timestamp);
+    }
+    return this.getDeltaForAgent(fromAgent);
+  }
+
   getAllDeltas(): PixelDeltaPacket {
     const deltas: PixelDelta[] = [];
-    for (const [key, register] of Object.entries(this.dataMap.state)) {
-      const [x, y] = key.split(",").map(Number);
-      const [, timestamp, color] = register; // Extract timestamp from LWWRegister
-
-      deltas.push({ x, y, value: color, timestamp });
+    for (const [key, [replicaId, timestamp, value]] of Object.entries(
+      this.map.state
+    )) {
+      const [x, y] = PixelDataCRDT.getXYfromKey(key);
+      deltas.push({
+        x,
+        y,
+        timestamp,
+        value,
+        replicaId,
+        agentId: this.agentId,
+      });
     }
-    return { deltas, agentId: this.id };
-  }
-
-  /**
-   * Returns deltas that occurred after the given timestamp.
-   */
-  getDeltaSince(timestamp: number): PixelDeltaPacket {
-    const deltas: PixelDelta[] = [];
-    for (const [key, register] of Object.entries(this.dataMap.state)) {
-      const [x, y] = key.split(",").map(Number);
-      const [, ts, color] = register;
-      if (ts >= timestamp) {
-        deltas.push({ x, y, value: color, timestamp: ts });
-      }
-    }
-    return { deltas, agentId: this.id };
-  }
-
-  /**
-   * Serialize the CRDT state to a plain JSON object for storage.
-   */
-  toJSON(): any {
     return {
-      id: this.id,
-      state: this.dataMap.state, // LWWMap's internal state
+      deltas,
+      fromReplica: this.replicaId,
+      fromAgent: this.agentId,
     };
   }
 
-  /**
-   * Load a PixelDataCRDT from a plain JSON object.
-   */
-  static fromJSON(json: any): PixelDataCRDT {
-    const crdt = new PixelDataCRDT(json.id || "loaded");
-    // LWWMap constructor accepts id and state
-    crdt.dataMap = new (crdt.dataMap.constructor as any)(
-      crdt.id,
-      json.state || {}
-    );
-    return crdt;
+  getInfo(): PixelDataCRDTInfo {
+    return { agentId: this.agentId, replicaId: this.replicaId };
   }
 
-  // TODO: add a methot that checks current version of the state and returns the deltas that are not in the current state
-
-  static getKey(x: number, y: number): string {
-    return `${x},${y}`;
-  }
-  static getXYfromKey(key: string): [number, number] {
-    const [x, y] = key.split(",").map(Number);
-    return [x, y];
+  get(key: Key): RGB | null {
+    return this.map.get(key);
   }
 
-  handleMergeResult(
-    result: MergeResult,
-    agentId: string
-  ): PixelDeltaPacket | null {
-    // Update the peer's pixel timestamps with the merged result
-    if (!this.peerPixelTimestamps[agentId]) {
-      this.peerPixelTimestamps[agentId] = {};
-    }
-    for (const delta of result.applied) {
-      const key = PixelDataCRDT.getKey(delta.x, delta.y);
-      this.peerPixelTimestamps[agentId][key] = Math.max(
-        this.peerPixelTimestamps[agentId][key] || 0,
-        delta.timestamp
-      );
-    }
-
-    return this.getDeltaForPeer(agentId); // Return the deltas for this peer
+  get values(): Record<string, RGB> {
+    return this.map.values;
   }
-
-  ackPeerPixelDeltas(peerId: string, deltas: PixelDelta[]) {
-    if (!this.peerPixelTimestamps[peerId])
-      this.peerPixelTimestamps[peerId] = {};
-    for (const delta of deltas) {
-      const key = PixelDataCRDT.getKey(delta.x, delta.y);
-      this.peerPixelTimestamps[peerId][key] = Math.max(
-        this.peerPixelTimestamps[peerId][key] || 0,
-        delta.timestamp
-      );
-    }
+  get id(): string {
+    return `${this.agentId}:${this.replicaId}`;
   }
 }

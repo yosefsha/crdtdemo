@@ -43,15 +43,18 @@ router.post("/login", (req, res) => {
   return forwardRequest("/auth/login", req, res);
 });
 router.post("/logout", (req, res) => forwardRequest("/auth/logout", req, res));
-
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (req.session && req.session.loggedIn) {
-    next();
-    return;
-  }
-  res.status(403);
-  res.send("Not permitted");
-}
+/*
+ * Middleware to check if user is authenticated
+ * This is a placeholder for session-based auth, replaced with JWT logic completely
+ */
+// export function requireAuth(req: Request, res: Response, next: NextFunction) {
+//   if (req.session && req.session.loggedIn) {
+//     next();
+//     return;
+//   }
+//   res.status(403);
+//   res.send("Not permitted");
+// }
 
 router.get("/", (req: RequestWithBody, res: Response) => {
   // Remove session logic, just return a simple message or status
@@ -77,17 +80,13 @@ router.get("/", (req: RequestWithBody, res: Response) => {
 //   }
 // });
 
-router.get(
-  "/restricted",
-  requireAuth,
-  (req: RequestWithBody, res: Response) => {
-    res.send(`
+router.get("/restricted", (req: RequestWithBody, res: Response) => {
+  res.send(`
         <div>
             <div>You are logged in restricted area</div>
             <a href="/logout">Logout</a>
         </div>
         `);
-  }
-);
+});
 
 export default router;

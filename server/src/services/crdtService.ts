@@ -1,4 +1,8 @@
-import { PixelDataCRDT, PixelDeltaPacket } from "../crdt/PixelDataCRDT";
+import {
+  MergeResult,
+  PixelDataCRDT,
+  PixelDeltaPacket,
+} from "../crdt/PixelDataCRDT";
 // TODO: Move PixelDataCRDT to a shared directory/package (e.g., ../../shared/crdt/PixelDataCRDT)
 // and import from there in both client and server for a single source of truth.
 import { getTimestamp } from "./helpers";
@@ -6,36 +10,84 @@ import { userCrdtDb, upsertUserCrdtDocument } from "./userCrdtDb";
 
 class CRDTService {
   /**
+   * Singleton instance of CRDTService.
+   * Use CRDTService.getInstance() to access the singleton instance.
+   */
+  private static instance: CRDTService;
+  private userPixelData: Record<string, PixelDataCRDT> = {};
+  constructor() {
+    // Private constructor to enforce singleton pattern
+    console.debug(
+      `[${getTimestamp()}] [DEBUG][CRDTService] Singleton instance created`
+    );
+  }
+  /**
+   * Get the singleton instance of CRDTService.
+   * @returns The singleton instance of CRDTService
+   */
+  static getInstance(): CRDTService {
+    if (!CRDTService.instance) {
+      CRDTService.instance = new CRDTService();
+    }
+    return CRDTService.instance;
+  }
+  /**
    * Merge another user's CRDT into the current user's CRDT and persist the result.
    * @param userId The current user's ID
-   * @param otherCRDT The PixelDataCRDT instance to merge in
-   * @returns The merged DeltasPacket containing the deltas from the merge
+   * @param otherAgentId The other user's ID
+   * @returns The merged MergeResult containing the deltas from the merge
    */
-  async mergeUserCRDTs(userId: string, otherCRDT: PixelDataCRDT) {
+  async mergeOtherUserCRDTs(
+    userId: string,
+    otherAgentId: string
+  ): Promise<MergeResult | null> {
     console.debug(
-      `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 1: Get or create userPixelData for userId:`,
+      `[${getTimestamp()}] [DEBUG][mergeOtherUserCRDTs] Step 1: Get or create userPixelData for userId:`,
       userId
     );
-    const userPixelData = this.getOrCreateUserPixelData(userId);
+    const userPixelData = await this.getOrCreateUserPixelData(userId);
     console.debug(
-      `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 2: userPixelData before merge:`,
+      `[${getTimestamp()}] [DEBUG][mergeOtherUserCRDTs] Step 2: userPixelData after creation:`,
       userPixelData
     );
-    const otherDeltasPacket = otherCRDT.getAllDeltas();
+    // Load the other user's CRDT data
+    const otherUserPixelData = await this.getOrCreateUserPixelData(
+      otherAgentId
+    );
     console.debug(
-      `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 3: otherCRDT.getAllDeltas() result:`,
+      `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 2: otherUserPixelData after creation:`,
+      otherUserPixelData
+    );
+
+    const otherDeltasPacket = otherUserPixelData.getDeltaForAgent(userId);
+
+    const mergeResult = userPixelData.merge(otherDeltasPacket!);
+    console.debug(
+      `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 4: Merging deltas from other user:`,
+      otherAgentId,
+      `Result:`,
+      mergeResult
+    );
+    otherUserPixelData.handleMergeAgentResult(
+      mergeResult,
+      userId // Handle the merge result for the current user
+    );
+
+    console.debug(
+      `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 3: otherUserPixelData.getDeltaForAgent() result:`,
       otherDeltasPacket
     );
-    const agentId = otherCRDT.getId() || "other";
+    if (!otherDeltasPacket) {
+      console.warn(
+        `[${getTimestamp()}] [WARN][mergeUserCRDTs] No deltas found for other user:`,
+        otherAgentId
+      );
+      return null; // No deltas to merge
+    }
     console.debug(
-      `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 4: agentId for merge:`,
-      agentId
+      `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 4: Merging deltas from other user:`,
+      otherAgentId
     );
-    // Merge the other user's CRDT into the current user's CRDT
-    const mergeResult = userPixelData.merge({
-      deltas: otherDeltasPacket.deltas,
-      agentId,
-    });
     console.debug(
       `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 5: merge result:`,
       mergeResult
@@ -59,52 +111,42 @@ class CRDTService {
     // Return the merged deltas packet
     return mergeResult;
   }
-  private static instance: CRDTService;
-  private pixelData: PixelDataCRDT;
-  private userPixelData: Record<string, PixelDataCRDT> = {};
-
-  constructor() {
-    this.pixelData = new PixelDataCRDT(`ServerPixelData${getTimestamp()}`);
-  }
-
-  static getInstance(): CRDTService {
-    if (!CRDTService.instance) {
-      CRDTService.instance = new CRDTService();
-    }
-    return CRDTService.instance;
-  }
-
-  getPixelData(): PixelDataCRDT {
-    return this.pixelData;
-  }
-
-  // getCurrentState(): State<[number, number, number]> {
-  //   return this.pixelData.state;
-  // }
-
-  setPixelData(pixelData: PixelDataCRDT) {
-    this.pixelData = pixelData;
-  }
-
-  // syncState(state: State<[number, number, number]>) {
-  //   this.pixelData.merge(state);
-  //   return this.pixelData.state;
-  // }
-  syncDeltas(deltas: PixelDeltaPacket) {
-    return this.pixelData.merge(deltas);
-  }
-
-  getOrCreateUserPixelData(userId: string): PixelDataCRDT {
-    if (!this.userPixelData[userId]) {
-      this.userPixelData[userId] = new PixelDataCRDT(
-        `UserPixelData_${userId}_${getTimestamp()}`
+  /**
+   * Get or create a PixelDataCRDT instance for a specific user.
+   * If it doesn't exist, create a new one with the userId and a server replicaId.
+   * @param userId The user's ID
+   * @returns The PixelDataCRDT instance for the user
+   */
+  async getOrCreateUserPixelData(userId: string): Promise<PixelDataCRDT> {
+    // Check if the userPixelData already exists in memory
+    let res: PixelDataCRDT | null = this.userPixelData[userId];
+    if (res) {
+      console.debug(
+        `[${getTimestamp()}] [DEBUG][CRDTService] Found existing userPixelData in memory for userId:`,
+        userId
       );
+      return res; // Return existing instance
     }
-    return this.userPixelData[userId];
+
+    res = await this.getUserPixelDataFromDb(userId);
+    if (!res) {
+      console.debug(
+        `[${getTimestamp()}] [DEBUG][CRDTService] No existing userPixelData found in DB for userId:`,
+        userId
+      );
+      // Create a new PixelDataCRDT instance for this user
+      console.debug(
+        `[${getTimestamp()}] [DEBUG][CRDTService] Creating new PixelDataCRDT instance for userId:`,
+        userId
+      );
+      res = new PixelDataCRDT(userId, `${userId}_server`);
+      this.userPixelData[userId] = res;
+    }
+    return res;
   }
 
   async syncUserDeltas(userId: string, deltas: PixelDeltaPacket) {
-    const userPixelData = this.getOrCreateUserPixelData(userId);
+    const userPixelData = await this.getOrCreateUserPixelData(userId);
     const merged = userPixelData.merge(deltas);
     // Save to MongoDB after merge (upsert by userId)
     try {
@@ -127,7 +169,68 @@ class CRDTService {
     return merged;
   }
 
-  async getUserPixelDataFromDb(userId: string) {
+  async syncReplicaDeltas(
+    userId: string,
+    replicaId: string,
+    deltas: PixelDeltaPacket
+  ) {
+    const userPixelData = await this.getOrCreateUserPixelData(userId);
+
+    const mergeResult = userPixelData.merge(deltas);
+    // Save to MongoDB after merge (upsert by userId)
+    try {
+      await upsertUserCrdtDocument(
+        { _id: userId },
+        {
+          _id: userId,
+          userId,
+          timestamp: new Date(),
+          crdt: userPixelData.toJSON(), // Store as JSON
+        }
+      );
+    } catch (err) {
+      // This catch is mostly redundant, but you can keep it for synchronous errors
+      console.error(
+        `Unexpected error in syncUserDeltas for user ${userId}:`,
+        err
+      );
+    }
+    return mergeResult;
+  }
+
+  async getAllReplicaDeltas(userId: string): Promise<PixelDeltaPacket | null> {
+    await this.loadUserPixelData(userId);
+
+    const userPixelData = await this.getOrCreateUserPixelData(userId);
+    if (!userPixelData) {
+      console.warn(
+        `[${getTimestamp()}] [WARN][CRDTService] getAllReplicaDeltas: No pixel data found for user:`,
+        userId
+      );
+      return null; // No deltas to merge
+    }
+
+    // Get deltas for the client replica
+    console.info(
+      `[${getTimestamp()}] [INFO][CRDTService] getAllReplicaDeltas: Fetching deltas for userId:`,
+      userId
+    );
+    const deltas = userPixelData.getDeltaForReplica(`${userId}_client`);
+    if (!deltas) {
+      console.warn(
+        `[${getTimestamp()}] [WARN][CRDTService] getAllReplicaDeltas: No deltas found for user:`,
+        userId
+      );
+      return null; // No deltas to return
+    }
+    console.info(
+      `[${getTimestamp()}] [INFO][CRDTService] getAllReplicaDeltas: fetched deltas for userId:`,
+      userId
+    );
+    return deltas;
+  }
+
+  async getUserPixelDataFromDb(userId: string): Promise<PixelDataCRDT | null> {
     // Efficiently load the latest CRDT document for this user using upsertDocument's filter
     const doc = await userCrdtDb.upsertDocument({ _id: userId }, {}); // upsertDocument returns the doc, but we don't want to update, just fetch
     // If not found, upsertDocument will create an empty doc, so instead use a new method for find
@@ -137,13 +240,12 @@ class CRDTService {
     return null;
   }
 
-  async loadUserPixelData(userId: string) {
+  async loadUserPixelData(userId: string): Promise<void> {
     const crdt = await this.getUserPixelDataFromDb(userId);
     if (crdt) {
       // Replace in-memory CRDT for this user
       this.userPixelData[userId] = crdt;
     }
-    return this.userPixelData[userId] || null;
   }
 }
 

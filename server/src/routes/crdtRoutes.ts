@@ -20,11 +20,23 @@ router.get("/sync", verifyJWT, async (req, res) => {
   }
   try {
     // Load the user's CRDT data
-    console.log("Loading CRDT data for user:", userId);
-    const crdt = await crdtService.loadUserPixelData(userId);
-    res.json({ crdt });
+    console.debug("Loading CRDT data for user:", userId);
+    const packet = await crdtService.getAllReplicaDeltas(userId);
+    console.info(
+      `[${getCurrentTime()}] Loaded CRDT deltas for user: ${userId}: ${
+        packet?.deltas?.length || 0
+      } deltas `
+    );
+    // If no CRDT data found, return 404
+    if (!packet) {
+      console.warn("CRDT not found for user:", userId);
+      res.status(404).json({ error: "CRDT not found for user", userId });
+      return;
+    }
+    res.json({ deltas: packet });
   } catch (err) {
-    res.status(500).send("Failed to load user CRDT data");
+    res.status(500).json({ error: `Failed to load user CRDT data: ${err}` });
+    return;
   }
 });
 
@@ -49,9 +61,9 @@ router.post("/sync", verifyJWT, async (req, res) => {
 
   // merge the incoming state with the user's state
   try {
-    console.log(`[${getCurrentTime()}] will sync deltas: `, deltas);
-    const syncResult = await crdtService.syncUserDeltas(userId, deltas);
-    res.json({ data: syncResult });
+    console.log(`[${getCurrentTime()}] will sync deltas: for user ${userId}`);
+    const mergeResult = await crdtService.syncUserDeltas(`${userId}`, deltas);
+    res.json({ data: mergeResult });
   } catch (error) {
     res.status(400).send(`[${getCurrentTime()}] Error syncing state`);
   }
@@ -78,25 +90,15 @@ router.post("/sync-from-other", verifyJWT, async (req, res) => {
       return;
     }
 
-    // 1. Update current user's CRDT with incoming deltas (if any)
-    if (deltas) {
-      await crdtService.syncUserDeltas(userId, deltas);
-    }
-
-    // 2. Load the target user's CRDT data
-    console.log("Attempting to load target user CRDT", { targetUser });
-    const otherCRDT = await crdtService.loadUserPixelData(targetUser);
-    if (!otherCRDT) {
-      console.warn("Target user CRDT not found", { targetUser });
-      res.status(404).json({ error: "Target user CRDT not found", targetUser });
+    if (!deltas) {
+      res.status(422).json({ error: "You must provide a delta packet" });
       return;
     }
 
     // 3. Merge the other user's CRDT into the current user's CRDT
-    const mergedDeltas = await crdtService.mergeUserCRDTs(userId, otherCRDT);
-
+    const result = await crdtService.mergeOtherUserCRDTs(userId, targetUser);
     // 4. Return the merged CRDT (or just confirmation)
-    res.json({ data: mergedDeltas });
+    res.json({ data: result });
   } catch (err) {
     console.error("[/sync-from-other] Error:", err);
     res.status(500).json({ error: "Internal server error" });

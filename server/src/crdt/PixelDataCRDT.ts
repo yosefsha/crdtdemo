@@ -1,139 +1,8 @@
 // Replica-aware CRDT with peer tracking, agent awareness, and delta filtering
+// This CRDT is designed for pixel data, allowing multiple agents to modify pixel colors
+// while tracking changes across replicas and agents.
 
-/*
-1. Sync Between Two Replicas of the Same Agent
-Setup
-agentId = "A"
-
-replicaId = "A:tab1" and "A:tab2"
-
-Steps
-tab1 calls getDeltaForAgent("A")
-
-It checks what replicas under agent A have already seen.
-
-Finds updates that are new to the other replicas of "A" (e.g., "A:tab2").
-
-tab2 calls merge() with the packet from tab1
-
-Applies updates to local LWWMap.
-
-Updates peerTimestamps["A"].replicas["A:tab1"].
-
-tab2 optionally calls handleMergeResult(...)
-
-To respond with any data tab1 might be missing.
-
-This flow ensures a full sync between the two tabs of the same agent, while tracking which tab saw what pixel.
-
-2. Sync Between Two Different Agents
-Setup
-Agent A has replicaId = "A:1"
-
-Agent B has replicaId = "B:1"
-
-Steps
-Agent A calls getDeltaForAgent("B")
-
-Collects any updates that B (based on all its replicas) hasn’t seen.
-
-Agent B calls merge() with Agent A’s packet
-
-Applies new data to local LWWMap.
-
-Updates peerTimestamps["A"].replicas["A:1"].
-
-Agent B computes missing[] in the MergeResult
-
-This tells B what data A hasn’t seen.
-
-Agent B calls handleMergeResult(..., {agentId: "A", replicaId: "A:1"})
-
-Pushes those missing deltas back to Agent A.
-*/
-// Replica-aware CRDT with peer tracking, agent awareness, and delta filtering
-
-// export type RGB = [number, number, number];
-// export type ReplicaId = string;
-// export type AgentId = string;
-
-// export class LWWRegister<T> {
-//   state: [replicaId: string, timestamp: number, value: T];
-
-//   constructor(initial: [string, number, T]) {
-//     this.state = initial;
-//   }
-
-//   set(replicaId: string, value: T): boolean {
-//     const [, , currentValue] = this.state;
-//     if (currentValue === value) return false;
-//     this.state = [replicaId, Date.now(), value];
-//     return true;
-//   }
-
-//   merge(incoming: [string, number, T]): boolean {
-//     const [rIn, tIn, vIn] = incoming;
-//     const [rCur, tCur] = this.state;
-//     if (tIn > tCur || (tIn === tCur && rIn > rCur)) {
-//       this.state = incoming;
-//       return true;
-//     }
-//     return false;
-//   }
-
-//   get value() {
-//     return this.state[2];
-//   }
-// }
-
-//
-// export type RegisterState<T> = [replicaId: string, timestamp: number, value: T];
-// export type State<T> = Record<Key, RegisterState<T | null>>;
-
-// export class LWWMap<T> {
-//   #data = new Map<string, LWWRegister<T | null>>();
-
-//   get state(): State<T> {
-//     const out: State<T> = {};
-//     for (const [k, reg] of this.#data) out[k] = reg.state;
-//     return out;
-//   }
-
-//   get values(): Record<string, T> {
-//     const out: Record<string, T> = {};
-//     for (const [k, reg] of this.#data) {
-//       if (reg.value !== null) {
-//         out[k] = reg.value;
-//       }
-//     }
-//     return out;
-//   }
-
-//   get(key: Key): T | null {
-//     return this.#data.get(key)?.value || null;
-//   }
-
-//   set(replicaId: ReplicaId, key: Key, value: T | null) {
-//     const reg = this.#data.get(key);
-//     if (reg) reg.set(replicaId, value);
-//     else this.#data.set(key, new LWWRegister([replicaId, Date.now(), value]));
-//   }
-
-//   merge(state: State<T>): string[] {
-//     const updated: string[] = [];
-//     for (const [key, incoming] of Object.entries(state)) {
-//       const reg = this.#data.get(key);
-//       if (reg) {
-//         if (reg.merge(incoming)) updated.push(key);
-//       } else {
-//         this.#data.set(key, new LWWRegister(incoming));
-//         updated.push(key);
-//       }
-//     }
-//     return updated;
-//   }
-// }
-
+import { getTimestamp } from "../services/helpers";
 import { LWWMap } from "./CRDTTypes";
 import type { RGB, ReplicaId, AgentId, Key } from "./CRDTTypes";
 
@@ -187,6 +56,29 @@ export class PixelDataCRDT {
     return [x, y];
   }
 
+  static fromJSON(
+    data: PixelDataCRDTInfo & {
+      state: Record<Key, [ReplicaId, number, RGB | null]>;
+      agentTimestamps: Record<AgentId, Record<Key, number>>;
+      replicaTimestamps: Record<ReplicaId, Record<Key, number>>;
+    }
+  ): PixelDataCRDT {
+    const crdt = new PixelDataCRDT(data.agentId, data.replicaId);
+    crdt.map.merge(data.state || {});
+    crdt.agentTimestamps = data.agentTimestamps || {};
+    crdt.replicaTimestamps = data.replicaTimestamps || {};
+    return crdt;
+  }
+  toJSON() {
+    return {
+      agentId: this.agentId,
+      replicaId: this.replicaId,
+      state: this.map.state,
+      agentTimestamps: this.agentTimestamps,
+      replicaTimestamps: this.replicaTimestamps,
+    };
+  }
+
   set(key: Key, color: RGB | null): PixelDelta | null {
     const old = this.map.get(key);
     if (old && old.toString() === color?.toString()) return null;
@@ -237,9 +129,13 @@ export class PixelDataCRDT {
     // Only allow intra-agent replica sync
     if (!this.replicaTimestamps[replicaId]) {
       this.replicaTimestamps[replicaId] = {};
+      console.info(
+        `[${getTimestamp()}] [INFO][PixelDataCRDT] getDeltaForReplica: Created new replica timestamp record for replicaId:`,
+        replicaId
+      );
     }
     const replicaMap = this.replicaTimestamps[replicaId];
-    if (!replicaMap) return null;
+
     const deltas: PixelDelta[] = [];
     for (const [key, [repId, timestamp, value]] of Object.entries(
       this.map.state
@@ -257,17 +153,45 @@ export class PixelDataCRDT {
         });
       }
     }
-    return deltas.length === 0
-      ? null
-      : {
-          deltas,
-          fromReplica: this.replicaId,
-          fromAgent: this.agentId,
+    const res =
+      deltas.length === 0
+        ? null
+        : {
+            deltas,
+            fromReplica: this.replicaId,
+            fromAgent: this.agentId,
+          };
+    console.info(
+      `[${getTimestamp()}] [INFO][PixelDataCRDT] getDeltaForReplica: Fetched deltas for replicaId:`,
+      replicaId
+    );
+    return res;
+  }
+
+  /*
+   * Merges a PixelDeltaPacket into the CRDT state.
+   * Applies deltas to the LWWMap and updates agent-level clocks.
+   * Returns a MergeResult containing applied and missing deltas.
+   * This method is used for syncing between different agents.
+   * It applies the deltas from the packet to the local state and computes
+   * which deltas were applied and which are missing for the sender.
         };
   }
 
-  // AGENT-LEVEL SYNC: Used for inter-agent sync (never tracks other agents' replicas)
+  /*
+   * Merges a PixelDeltaPacket into the CRDT state.
+   * Applies deltas to the LWWMap and updates agent-level clocks.
+   * Returns a MergeResult containing applied and missing deltas.
+   * This method is used for syncing between different agents.
+   * It applies the deltas from the packet to the local state and computes
+   * which deltas were applied and which are missing for the sender.
+   * @param packet - The PixelDeltaPacket containing deltas to merge.
+   * @returns MergeResult containing applied and missing deltas.
+   */
   merge(packet: PixelDeltaPacket): MergeResult {
+    if (!packet || !packet.deltas || packet.deltas.length === 0) {
+      return { applied: [], missing: [] };
+    }
     const applied: PixelDelta[] = [];
     const missing: PixelDelta[] = [];
     for (const delta of packet.deltas) {
@@ -367,5 +291,8 @@ export class PixelDataCRDT {
 
   get values(): Record<string, RGB> {
     return this.map.values;
+  }
+  get id(): string {
+    return `${this.agentId}:${this.replicaId}`;
   }
 }
