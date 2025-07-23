@@ -155,7 +155,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
       buffer[2] = color[2];
       buffer[3] = 255; // Alpha channel
       const imageData = new ImageData(buffer, 1, 1);
-      console.log(
+      console.debug(
         `[${getTimestamp()}] CanvasEditor:${pixelData.id} - draw color: [${color}] at (${x}, ${y})`
       );
       // draw the pixel on the canvas

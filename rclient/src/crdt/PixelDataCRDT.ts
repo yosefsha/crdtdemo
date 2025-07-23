@@ -2,7 +2,7 @@
 // This CRDT is designed for pixel data, allowing multiple agents to modify pixel colors
 // while tracking changes across replicas and agents.
 
-import { getTimestamp } from "../services/helpers";
+import { getTimestamp } from "../helpers";
 import { LWWMap } from "./CRDTTypes";
 import type { RGB, ReplicaId, AgentId, Key } from "./CRDTTypes";
 

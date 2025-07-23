@@ -193,6 +193,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
 
   // Inter-agent sync (with another user/agent)
   async function handleOtherUserSync() {
+    await handleRemoteSync(); // Ensure we sync with server first
     if (token && otherUserId) {
       try {
         const deltaPacket = pixelData.getDeltaForAgent(otherUserId);
@@ -213,7 +214,13 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
           throw err;
         }
         const resData = await res.json();
-        handleSyncResponse("agent", resData, otherUserId);
+        // handleSyncResponse("agent", resData.data, otherUserId);
+        pixelData.merge(resData.data); // Merge deltas into pixelData
+        setSharedState((s) => s + 1); // Force re-render after sync
+        console.debug(
+          `[${getTimestamp()}] [DEBUG] Merged deltas from other user:`,
+          resData.data
+        );
         console.info(
           `[${getTimestamp()}] [INFO] [otherUser] Agent-level sync to other user complete`
         );

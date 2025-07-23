@@ -40,7 +40,7 @@ class CRDTService {
   async mergeOtherUserCRDTs(
     userId: string,
     otherAgentId: string
-  ): Promise<MergeResult | null> {
+  ): Promise<PixelDeltaPacket | null> {
     console.debug(
       `[${getTimestamp()}] [DEBUG][mergeOtherUserCRDTs] Step 1: Get or create userPixelData for userId:`,
       userId
@@ -109,7 +109,7 @@ class CRDTService {
       userId
     );
     // Return the merged deltas packet
-    return mergeResult;
+    return otherDeltasPacket;
   }
   /**
    * Get or create a PixelDataCRDT instance for a specific user.
