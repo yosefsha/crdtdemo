@@ -7,119 +7,10 @@ export interface CRDT<T, S> {
 }
 
 // LWWElementSet is a Last-Write-Wins Element Set CRDT
-export class LWWRegister<T> {
-  readonly id: string;
-  state: [peer: string, timestamp: number, value: T];
-
-  get value() {
-    return this.state[2];
-  }
-
-  constructor(id: string, state: [string, number, T]) {
-    this.id = id;
-    this.state = state;
-  }
-
-  set(value: T): boolean {
-    // set the peer ID to the local ID, increment the local timestamp by 1 and set the value
-    if (this.state[2] === value) return false; // Avoid unnecessary updates
-    this.state = [this.id, Date.now(), value];
-    return true;
-  }
-
-  merge(state: [peer: string, timestamp: number, value: T]) {
-    const [remotePeer, remoteTimestamp] = state;
-    const [localPeer, localTimestamp] = this.state;
-
-    // if the local timestamp is greater than the remote timestamp, discard the incoming value
-    if (localTimestamp > remoteTimestamp) return;
-
-    // if the timestamps are the same but the local peer ID is greater than the remote peer ID, discard the incoming value
-    if (localTimestamp === remoteTimestamp && localPeer > remotePeer) return;
-
-    // otherwise, overwrite the local state with the remote state
-    this.state = state;
-  }
-}
-
-export class LWWMap<T> {
-  readonly id: string;
-  #data = new Map<string, LWWRegister<T | null>>();
-
-  constructor(id: string, state: State<T>) {
-    this.id = id;
-
-    // create a new register for each key in the initial state
-    for (const [key, register] of Object.entries(state)) {
-      this.#data.set(key, new LWWRegister(this.id, register));
-    }
-  }
-
-  get value(): Value<T> {
-    const value: Value<T> = {};
-
-    // build up an object where each value is set to the value of the register at the corresponding key
-    for (const [key, register] of this.#data.entries()) {
-      if (register.value !== null) value[key] = register.value;
-    }
-
-    return value;
-  }
-
-  get state() {
-    const state: State<T> = {};
-
-    // build up an object where each value is set to the full state of the register at the corresponding key
-    for (const [key, register] of this.#data.entries()) {
-      if (register) state[key] = register.state;
-    }
-
-    return state;
-  }
-
-  has(key: string) {
-    return this.#data.get(key)?.value !== null;
-  }
-
-  get(key: string) {
-    return this.#data.get(key)?.value;
-  }
-
-  set(key: string, value: T | null) {
-    // get the register at the given key
-    let register = this.#data.get(key);
-
-    // if the register already exists, set the value
-    if (register) {
-      return register.set(value);
-    }
-    // otherwise, instantiate a new `LWWRegister` with the value
-    this.#data.set(key, new LWWRegister(this.id, [this.id, 1, value]));
-    return true;
-  }
-
-  delete(key: string) {
-    // set the register to null, if it exists
-    this.#data.get(key)?.set(null);
-  }
-
-  merge(state: State<T>) {
-    // recursively merge each key's register with the incoming state for that key
-    for (const [key, remote] of Object.entries(state)) {
-      const local = this.#data.get(key);
-
-      // if the register already exists, merge it with the incoming state
-      if (local) local.merge(remote);
-      // otherwise, instantiate a new `LWWRegister` with the incoming state
-      else this.#data.set(key, new LWWRegister(this.id, remote));
-    }
-  }
-}
 
 // State is a map of keys to the full state of the corresponding register
-export type State<T> = Record<string, LWWRegister<T | null>["state"]>;
 
-export type Value<T> = {
+export type Values<T> = {
   [key: string]: T;
 };
 // State is a record of keys to the full state of the corresponding register
@@ -132,10 +23,105 @@ export interface IDelta<T> {
 export interface ICRDT<T, D extends IDelta<T>> {
   get(key: string): T | null;
   set(key: string, value: T): D | null;
-  merge(packet: { deltas: D[]; agentId: string }): {
+  /**
+   * Bidirectional merge: applies incoming deltas, returns both applied and missing deltas for the peer.
+   * If packet.peerPixelTimestamps is provided, computes missing deltas for the peer.
+   */
+  merge(packet: {
     deltas: D[];
     agentId: string;
-  };
+    peerTimestamps?: Record<string, number>;
+  }): { applied: D[]; missing: D[] };
   getAllDeltas(): { deltas: D[]; agentId: string };
   getDeltaSince(timestamp: number): { deltas: D[]; agentId: string };
+}
+///////new
+export type RGB = [number, number, number];
+export type ReplicaId = string;
+export type AgentId = string;
+export type Key = string;
+
+export interface PixelDelta {
+  x: number;
+  y: number;
+  timestamp: number;
+  value: RGB | null;
+  replicaId: ReplicaId;
+  agentId: AgentId;
+}
+
+export class LWWRegister<T> {
+  state: [replicaId: string, timestamp: number, value: T];
+
+  constructor(initial: [string, number, T]) {
+    this.state = initial;
+  }
+
+  set(replicaId: string, value: T): boolean {
+    const [, , currentValue] = this.state;
+    if (currentValue === value) return false;
+    this.state = [replicaId, Date.now(), value];
+    return true;
+  }
+
+  merge(incoming: [string, number, T]): boolean {
+    const [rIn, tIn, vIn] = incoming;
+    const [rCur, tCur] = this.state;
+    if (tIn > tCur || (tIn === tCur && rIn > rCur)) {
+      this.state = incoming;
+      return true;
+    }
+    return false;
+  }
+
+  get value() {
+    return this.state[2];
+  }
+}
+
+export type RegisterState<T> = [replicaId: string, timestamp: number, value: T];
+export type State<T> = Record<Key, RegisterState<T | null>>;
+
+export class LWWMap<T> {
+  #data = new Map<string, LWWRegister<T | null>>();
+
+  get state(): State<T> {
+    const out: State<T> = {};
+    for (const [k, reg] of this.#data) out[k] = reg.state;
+    return out;
+  }
+
+  get values(): Record<string, T> {
+    const out: Record<string, T> = {};
+    for (const [k, reg] of this.#data) {
+      if (reg.value !== null) {
+        out[k] = reg.value;
+      }
+    }
+    return out;
+  }
+
+  get(key: Key): T | null {
+    return this.#data.get(key)?.value || null;
+  }
+
+  set(replicaId: ReplicaId, key: Key, value: T | null) {
+    const reg = this.#data.get(key);
+    if (reg) reg.set(replicaId, value);
+    else this.#data.set(key, new LWWRegister([replicaId, Date.now(), value]));
+  }
+
+  merge(state: State<T>): string[] {
+    const updated: string[] = [];
+    for (const [key, incoming] of Object.entries(state)) {
+      const reg = this.#data.get(key);
+      if (reg) {
+        if (reg.merge(incoming)) updated.push(key);
+      } else {
+        this.#data.set(key, new LWWRegister(incoming));
+        updated.push(key);
+      }
+    }
+    return updated;
+  }
 }

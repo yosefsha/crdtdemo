@@ -1,11 +1,40 @@
-import React from "react";
+import React, { useEffect } from "react";
 import Welcome from "./Welcome";
 import { Routes, Route, Link } from "react-router-dom";
 import "../styles/App.css";
 import CRDTDemoPage from "./CRDTDemoPage";
 import Users from "./Users";
+import store from "../store";
+import { validateTokenAndFetchUser } from "../slices/authSlice";
+
+const tokenKey = (sliceKey: string) => `jwtToken_${sliceKey}`;
+
+const useRestoreJWT = () => {
+  useEffect(() => {
+    const aliceToken = localStorage.getItem(tokenKey("authAlice"));
+    const bobToken = localStorage.getItem(tokenKey("authBob"));
+    if (aliceToken) {
+      store.dispatch(
+        validateTokenAndFetchUser({
+          sliceKey: "authAlice",
+          token: aliceToken,
+        }) as any
+      );
+    }
+    if (bobToken) {
+      store.dispatch(
+        validateTokenAndFetchUser({
+          sliceKey: "authBob",
+          token: bobToken,
+        }) as any
+      );
+    }
+  }, []);
+};
 
 const App: React.FC = () => {
+  useRestoreJWT();
+
   const renderHeader = () => (
     <div>
       <nav>

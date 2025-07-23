@@ -1,16 +1,11 @@
 import React, { useRef, useEffect } from "react";
 import css from "../styles/Canvas.module.css";
-import {
-  PixelDataCRDT,
-  PixelDelta,
-  PixelDeltaPacket,
-} from "../crdt/PixelDataCRDT";
-import { RGB } from "../crdt/PixelDataCRDT";
+import { PixelDataCRDT, PixelDelta } from "../crdt/PixelDataCRDT";
+import { RGB } from "../crdt/CRDTTypes";
 interface CanvasEditorProps {
-  id: string;
   width: number;
   height: number;
-  onStateChange: (deltas: PixelDeltaPacket) => void;
+  onStateChange: () => void;
   color: RGB | null;
   pixelData: PixelDataCRDT;
   sharedState: number;
@@ -18,7 +13,6 @@ interface CanvasEditorProps {
 }
 
 const CanvasEditor: React.FC<CanvasEditorProps> = ({
-  id,
   width,
   height,
   onStateChange,
@@ -45,14 +39,14 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${id} - No canvas found in PointerDown.`
+        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - No canvas found in PointerDown.`
       );
       return;
     }
     canvas.setPointerCapture(e.pointerId);
     isDrawingRef.current = true;
     console.log(
-      `[${getTimestamp()}] CanvasEditor:${id} - PointerDown event: did set pointer capture and isDrawing to true.`
+      `[${getTimestamp()}] CanvasEditor:${pixelData.id} - PointerDown event: did set pointer capture and isDrawing to true.`
     );
   };
 
@@ -61,7 +55,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${id} - No canvas found in PointerMove.`
+        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - No canvas found in PointerMove.`
       );
       return;
     }
@@ -122,14 +116,14 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${id} - No canvas found in draw.`
+        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - No canvas found in draw.`
       );
       return;
     }
     const ctx = canvas.getContext("2d");
     if (!ctx) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${id} - No 2D context found in draw.`
+        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - No 2D context found in draw.`
       );
       return;
     }
@@ -161,8 +155,8 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
       buffer[2] = color[2];
       buffer[3] = 255; // Alpha channel
       const imageData = new ImageData(buffer, 1, 1);
-      console.log(
-        `[${getTimestamp()}] CanvasEditor:${id} - draw color: [${color}] at (${x}, ${y})`
+      console.debug(
+        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - draw color: [${color}] at (${x}, ${y})`
       );
       // draw the pixel on the canvas
       ctx.putImageData(imageData, x, y);
@@ -173,21 +167,24 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     isDrawingRef.current = false;
     lastPosRef.current = null;
     console.log(
-      `[${getTimestamp()}] CanvasEditor:${id} - PointerUp event did set isDrawing to false and lastPos to null.`
+      `[${getTimestamp()}] CanvasEditor:${pixelData.id} - PointerUp event did set isDrawing to false and lastPos to null. deltasRef.current:`,
+      deltasRef.current
     );
-    onStateChange({ deltas: deltasRef.current, agentId: id });
+    onStateChange();
     deltasRef.current = [];
   };
 
   const drawCanvasFromData = (ctx: CanvasRenderingContext2D) => {
     console.log(
-      `[${getTimestamp()}] CanvasEditor:${id} - drawCanvas: isDrawingRef.current: ${isDrawingRef.current}`
+      `[${getTimestamp()}] CanvasEditor:${pixelData.id} - drawCanvas: isDrawingRef.current: ${isDrawingRef.current}`
     );
     const imgData = ctx.createImageData(width, height);
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const index = (y * width + x) * 4;
-        const [r, g, b] = pixelData.get(PixelDataCRDT.getKey(x, y));
+        const [r, g, b] = pixelData.get(PixelDataCRDT.getKey(x, y)) ?? [
+          255, 255, 255,
+        ];
         imgData.data[index] = r;
         imgData.data[index + 1] = g;
         imgData.data[index + 2] = b;
@@ -199,12 +196,12 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
 
   useEffect(() => {
     console.log(
-      `[${getTimestamp()}] CanvasEditor:${id} - useEffect: color: [${color}]`
+      `[${getTimestamp()}] CanvasEditor:${pixelData.id} - useEffect: color: [${color}]`
     );
     const canvas = canvasRef.current;
     if (!canvas) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${id} - No canvas found in useEffect.`
+        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - No canvas found in useEffect.`
       );
       return;
     }
@@ -212,7 +209,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
     const ctx = canvas.getContext("2d");
     if (!ctx) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${id} - No 2D context found in useEffect.`
+        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - No 2D context found in useEffect.`
       );
       return;
     }
@@ -226,32 +223,32 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
 
     return () => {
       console.log(
-        `[${getTimestamp()}] CanvasEditor:${id} - Cleaning up event listeners.`
+        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - Cleaning up event listeners.`
       );
       canvas.removeEventListener("pointerdown", handlePointerDown);
       canvas.removeEventListener("pointermove", handlePointerMove);
       canvas.removeEventListener("pointerup", handlePointerUp);
       canvas.removeEventListener("pointerleave", handlePointerUp);
     };
-  }, [color, id, pixelData, width, height, onStateChange]);
+  }, [color, pixelData, width, height, onStateChange]);
 
   // listen for changes in the shared state
   useEffect(() => {
     console.log(
-      `[${getTimestamp()}] CanvasEditor:${id} - useEffect: sharedState: ${sharedState}`
+      `[${getTimestamp()}] CanvasEditor:${pixelData.id} - useEffect: sharedState: ${sharedState}`
     );
     // pixelData.merge(sharedState);
     const canvas = canvasRef.current;
     if (!canvas) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${id} - No canvas found in useEffect sharedState.`
+        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - No canvas found in useEffect sharedState.`
       );
       return;
     }
     const ctx = canvas.getContext("2d");
     if (!ctx) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${id} - No 2D context found in useEffect sharedState.`
+        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - No 2D context found in useEffect sharedState.`
       );
       return;
     }
@@ -260,7 +257,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
 
   useEffect(() => {
     console.info(
-      `[${getTimestamp()}] CanvasEditor:${id} - useEffect: cursor: ${cursor}`
+      `[${getTimestamp()}] CanvasEditor: - useEffect: cursor: ${cursor}`
     );
     const canvas = canvasRef.current;
     if (canvas) {

@@ -1,7 +1,20 @@
 import { Router, Request, Response, NextFunction } from "express";
+import { verifyJWT } from "./verifyJWT";
 import { RequestWithBody } from "./interfaces";
 
 const router = Router();
+
+// /me endpoint for JWT validation and user info
+router.get("/me", verifyJWT, (req: Request, res: Response): void => {
+  // The user info is attached to req by verifyJWT middleware
+  const user = (req as any).user;
+  if (!user) {
+    res.status(401).json({ error: "Invalid or expired token" });
+    return;
+  }
+  // You can customize what user info to return here
+  res.json({ user });
+});
 
 // Helper function to forward requests using fetch
 async function forwardRequest(path: string, req: Request, res: Response) {
@@ -30,15 +43,18 @@ router.post("/login", (req, res) => {
   return forwardRequest("/auth/login", req, res);
 });
 router.post("/logout", (req, res) => forwardRequest("/auth/logout", req, res));
-
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (req.session && req.session.loggedIn) {
-    next();
-    return;
-  }
-  res.status(403);
-  res.send("Not permitted");
-}
+/*
+ * Middleware to check if user is authenticated
+ * This is a placeholder for session-based auth, replaced with JWT logic completely
+ */
+// export function requireAuth(req: Request, res: Response, next: NextFunction) {
+//   if (req.session && req.session.loggedIn) {
+//     next();
+//     return;
+//   }
+//   res.status(403);
+//   res.send("Not permitted");
+// }
 
 router.get("/", (req: RequestWithBody, res: Response) => {
   // Remove session logic, just return a simple message or status
@@ -64,17 +80,13 @@ router.get("/", (req: RequestWithBody, res: Response) => {
 //   }
 // });
 
-router.get(
-  "/restricted",
-  requireAuth,
-  (req: RequestWithBody, res: Response) => {
-    res.send(`
+router.get("/restricted", (req: RequestWithBody, res: Response) => {
+  res.send(`
         <div>
             <div>You are logged in restricted area</div>
             <a href="/logout">Logout</a>
         </div>
         `);
-  }
-);
+});
 
-export { router };
+export default router;
