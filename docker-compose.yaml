@@ -95,6 +95,17 @@ services:
     networks:
       - app-network
 
+  enrich-worker:
+    build: ./enrich-worker
+    environment:
+      - RABBIT_URL=amqp://rabbit-mq
+    volumes:
+      - ./secrets/apiconf.json:/run/secrets/apiconf.json:ro
+    networks:
+      - app-network
+    depends_on:
+      - rabbit-mq
+
 networks:
   app-network:
 

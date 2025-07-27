@@ -6,11 +6,13 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import cookieSession from "cookie-session";
 import { connectDb } from "./db";
+import http from "http";
 const port = process.env.PORT || 4000; // Use the environment PORT or default to 4000
 const origin1 = process.env.CLIENT_ORIGIN || "http://localhost:3000"; // For local dev
 const origins = [origin1, "http://localhost"]; // Allow both local and configured origins
 
 const app = express();
+const server = http.createServer(app);
 
 connectDb()
   .then(() => console.log("✅ Connected to MongoDB"))
@@ -51,8 +53,12 @@ app.get("/health", (req, res) => {
   res.status(200).send("Health check passed");
 });
 
+// Socket.IO server setup
+import { setupSocket } from "./services/socket";
+setupSocket(server);
+
 // Start the server on the configured port
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Server is listening on ${port}!`);
   console.log(`Allowed origins: ${origins}`);
 });

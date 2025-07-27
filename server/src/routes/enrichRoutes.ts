@@ -2,12 +2,15 @@ import { Router, Request, Response, NextFunction } from "express";
 // Update the import path if needed, or create the middleware/auth.ts file with verifyJWT exported
 import { verifyJWT } from "../routes/verifyJWT";
 import { getCurrentTime } from "../services/helpers";
+import { emitEnrichmentResult } from "../services/socket";
 
 const router = Router();
 
 router.post("/enrich", verifyJWT, async (req, res) => {
   if (!req.body) {
-    res.status(422).send("You must provide a base64 image and requestId");
+    res
+      .status(422)
+      .send("You must provide a base64 image, requestId, and socketId");
     return;
   }
   // Get userId from JWT (set by verifyJWT)
@@ -18,7 +21,7 @@ router.post("/enrich", verifyJWT, async (req, res) => {
     return;
   }
   // Parse the incoming data
-  const { base64, requestId } = req.body;
+  const { base64, requestId, socketId } = req.body;
 
   // Simulate opening a socket (dummy, not a real socket)
   console.info(
@@ -32,6 +35,7 @@ router.post("/enrich", verifyJWT, async (req, res) => {
   );
 
   // Return the enriched data
+  emitEnrichmentResult(requestId, enrichedData, socketId); // Use socketId for targeted emit
   res.json({ type: "enriched-result", requestId, enrichedData });
 });
 
