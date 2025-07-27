@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import css from "../styles/Canvas.module.css";
 import { PixelDataCRDT, PixelDelta } from "../crdt/PixelDataCRDT";
 import { RGB } from "../crdt/CRDTTypes";
@@ -12,15 +12,18 @@ interface CanvasEditorProps {
   cursor: string;
 }
 
-const CanvasEditor: React.FC<CanvasEditorProps> = ({
-  width,
-  height,
-  onStateChange,
-  color,
-  pixelData,
-  sharedState,
-  cursor,
-}) => {
+const CanvasEditor = forwardRef(function CanvasEditor(
+  {
+    width,
+    height,
+    onStateChange,
+    color,
+    pixelData,
+    sharedState,
+    cursor,
+  }: CanvasEditorProps,
+  ref
+) {
   const deltasRef = useRef<PixelDelta[]>([]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
@@ -264,6 +267,14 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
       canvas.style.cursor = cursor; // Apply cursor style
     }
   }, [cursor]);
+
+  // Expose fromBase64Image via ref
+  useImperativeHandle(ref, () => ({
+    fromBase64Image: async (crdt: PixelDataCRDT, base64: string) => {
+      await fromBase64Image(crdt, base64);
+    },
+  }));
+
   return (
     <canvas
       className={css.canvas}
@@ -272,6 +283,61 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({
       height={height}
     />
   );
-};
+});
+
+// Utility: Convert PixelDataCRDT to base64 image
+export function toBase64Image(
+  pixelData: PixelDataCRDT,
+  width: number,
+  height: number
+): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d")!;
+  const imageData = ctx.createImageData(width, height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const color = pixelData.get(PixelDataCRDT.getKey(x, y)) || [
+        255, 255, 255,
+      ];
+      imageData.data[i] = color[0];
+      imageData.data[i + 1] = color[1];
+      imageData.data[i + 2] = color[2];
+      imageData.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return canvas.toDataURL();
+}
+
+// Utility: Convert base64 image to PixelDataCRDT
+export async function fromBase64Image(
+  crdt: PixelDataCRDT,
+  base64: string
+): Promise<PixelDataCRDT> {
+  const img = new Image();
+  img.src = base64;
+  await img.decode();
+  const canvas = document.createElement("canvas");
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(img, 0, 0);
+  const imageData = ctx.getImageData(0, 0, img.width, img.height);
+  for (let y = 0; y < img.height; y++) {
+    for (let x = 0; x < img.width; x++) {
+      const i = (y * img.width + x) * 4;
+      const color: RGB = [
+        imageData.data[i],
+        imageData.data[i + 1],
+        imageData.data[i + 2],
+      ];
+      crdt.set(PixelDataCRDT.getKey(x, y), color);
+    }
+  }
+  return crdt;
+}
 
 export default CanvasEditor;

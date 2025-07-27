@@ -1,6 +1,7 @@
 import express, { Request, Response } from "express";
 import loginRouter from "./routes/loginRoutes";
 import crdtRouter from "./routes/crdtRoutes";
+import enrichRouter from "./routes/enrichRoutes";
 import cors from "cors";
 import bodyParser from "body-parser";
 import cookieSession from "cookie-session";
@@ -42,6 +43,7 @@ app.use(
 
 // Use the router for login and API
 app.use("/api", crdtRouter);
+app.use("/api", enrichRouter); // Assuming enrichRouter is defined in enrichRoutes.ts
 app.use("/api", loginRouter);
 // Health check route
 app.get("/health", (req, res) => {
