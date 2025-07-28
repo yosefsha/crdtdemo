@@ -14,18 +14,62 @@ const replicate = new Replicate({ auth: replicateToken });
 
 async function enrichImage(base64) {
   try {
+    console.log("[enrich-worker] Calling Replicate API...");
     const output = await replicate.run(
       "stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
       {
         input: {
           image: base64,
-          prompt: "enhance this image",
+          prompt: "enhance this image, make it more detailed and artistic",
           strength: 0.8, // moderate change
           guidance_scale: 7, // typical value
+          disable_safety_checker: true, // Disable NSFW detection for canvas drawings
         },
       }
     );
-    return output; // Should be base64 or URL, depending on model
+    console.log("[enrich-worker] Replicate API response type:", typeof output);
+    console.log(
+      "[enrich-worker] Replicate API response:",
+      Array.isArray(output) ? `Array with ${output.length} items` : output
+    );
+
+    if (Array.isArray(output) && output.length > 0) {
+      const firstItem = output[0];
+      console.log("[enrich-worker] First item type:", typeof firstItem);
+      console.log("[enrich-worker] First item:", firstItem);
+
+      // Handle ReadableStream - convert to buffer then base64
+      if (
+        firstItem &&
+        typeof firstItem === "object" &&
+        "getReader" in firstItem
+      ) {
+        console.log("[enrich-worker] Converting ReadableStream to base64...");
+        const reader = firstItem.getReader();
+        const chunks = [];
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+
+        const buffer = Buffer.concat(chunks);
+        const base64Result = `data:image/png;base64,${buffer.toString(
+          "base64"
+        )}`;
+        console.log(
+          "[enrich-worker] Converted to base64, length:",
+          base64Result.length
+        );
+        return base64Result;
+      }
+
+      // If it's already a string (URL or base64), return it
+      return firstItem;
+    }
+
+    return output; // Fallback
   } catch (err) {
     console.error("[enrich-worker] Error enriching image via Replicate:", err);
     return base64;

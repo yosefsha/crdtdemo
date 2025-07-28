@@ -276,7 +276,15 @@ const CanvasEditor = forwardRef(function CanvasEditor(
   // Expose fromBase64Image via ref
   useImperativeHandle(ref, () => ({
     fromBase64Image: async (crdt: PixelDataCRDT, base64: string) => {
-      await fromBase64Image(crdt, base64);
+      await fromBase64Image(crdt, base64, width, height);
+      // Force redraw after loading image
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          drawCanvasFromData(ctx);
+        }
+      }
     },
   }));
 
@@ -318,22 +326,33 @@ export function toBase64Image(
 }
 
 // Utility: Convert base64 image to PixelDataCRDT
-export async function fromBase64Image(
+async function fromBase64Image(
   crdt: PixelDataCRDT,
-  base64: string
+  base64: string,
+  targetWidth: number = 200,
+  targetHeight: number = 200
 ): Promise<PixelDataCRDT> {
   const img = new Image();
   img.src = base64;
   await img.decode();
+
+  // Create a canvas to resize the image to target dimensions
   const canvas = document.createElement("canvas");
-  canvas.width = img.width;
-  canvas.height = img.height;
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
   const ctx = canvas.getContext("2d")!;
-  ctx.drawImage(img, 0, 0);
-  const imageData = ctx.getImageData(0, 0, img.width, img.height);
-  for (let y = 0; y < img.height; y++) {
-    for (let x = 0; x < img.width; x++) {
-      const i = (y * img.width + x) * 4;
+
+  // Draw the image scaled to fit the target size
+  ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+  const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+
+  // Clear existing CRDT data (manually remove all existing pixels)
+  // Since there's no clear method, we'll just overwrite all pixels
+
+  // Populate CRDT with resized image data
+  for (let y = 0; y < targetHeight; y++) {
+    for (let x = 0; x < targetWidth; x++) {
+      const i = (y * targetWidth + x) * 4;
       const color: RGB = [
         imageData.data[i],
         imageData.data[i + 1],

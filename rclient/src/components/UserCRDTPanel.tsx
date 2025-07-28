@@ -1,7 +1,7 @@
 import React, { useMemo, useRef } from "react";
 import { getTimestamp } from "../helpers";
 import AuthPage from "./AuthPage";
-import CanvasEditor, { toBase64Image, fromBase64Image } from "./CanvasEditor";
+import CanvasEditor, { toBase64Image } from "./CanvasEditor";
 import {
   MergeResult,
   PixelDataCRDT,
@@ -69,6 +69,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
       onLoggedInUserId(userId);
     }
   }, [userId, onLoggedInUserId]);
+
   React.useEffect(() => {
     console.info(
       `[${getTimestamp()}] [INFO] UserCRDTPanel: Rendered for sliceKey:`,
@@ -242,14 +243,13 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     const width = 200;
     const height = 200;
     const base64 = toBase64Image(pixelData, width, height);
-    console.log(
-      `[${getTimestamp()}] [DEBUG] Generated base64 for enrichment:`,
-      base64.substring(0, 100) + "...",
+    console.info(
+      `[${getTimestamp()}] Generated base64 for enrichment:`,
       "Length:",
       base64.length
     );
     const requestId = `${userId}_${Date.now()}`;
-    const socket: Socket = io("/", { path: config.socketPath }); // Use your server URL
+    const socket: Socket = io("/", { path: config.socketPath });
 
     socket.on("connect", async () => {
       const res = await fetch("/api/enrich", {
@@ -266,14 +266,17 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
       }
     });
 
-    socket.on("enrichment-result", (data) => {
+    socket.on("enrichment-result", async (data) => {
       if (data.requestId === requestId) {
-        const newpd = new PixelDataCRDT(userId, replicaId);
-        pixelData = newpd;
-        canvasEditorRef.current?.fromBase64Image(newpd, data.enrichedData);
         console.info(
-          `[${getTimestamp()}] [INFO] Enrichment result received and applied`
+          `[${getTimestamp()}] enrichment result received, Length:`,
+          data.enrichedData.length
         );
+
+        // Use the existing pixelData instead of creating a new one
+        canvasEditorRef.current?.fromBase64Image(pixelData, data.enrichedData);
+
+        console.info(`[${getTimestamp()}] enrichment result applied to canvas`);
         setSharedState((s) => s + 1);
         socket.disconnect();
       }
