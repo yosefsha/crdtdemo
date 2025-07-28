@@ -243,7 +243,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     const height = 200;
     const base64 = toBase64Image(pixelData, width, height);
     const requestId = `${userId}_${Date.now()}`;
-    const socket: Socket = io("http://localhost:4000"); // Use your server URL
+    const socket: Socket = io("/", { path: config.socketPath }); // Use your server URL
 
     socket.on("connect", async () => {
       const res = await fetch("/api/enrich", {
@@ -265,6 +265,9 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
         const newpd = new PixelDataCRDT(userId, replicaId);
         pixelData = newpd;
         canvasEditorRef.current?.fromBase64Image(newpd, data.enrichedData);
+        console.info(
+          `[${getTimestamp()}] [INFO] Enrichment result received and applied`
+        );
         setSharedState((s) => s + 1);
         socket.disconnect();
       }

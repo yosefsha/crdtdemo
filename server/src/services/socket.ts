@@ -5,6 +5,7 @@ import { Server as HttpServer } from "http";
 let io: Server | undefined;
 export function setupSocket(server: HttpServer) {
   io = new Server(server, {
+    path: "/socket", // ⬅️ ADD THIS LINE
     cors: {
       origin: [
         process.env.CLIENT_ORIGIN || "http://localhost:3000",
@@ -13,13 +14,6 @@ export function setupSocket(server: HttpServer) {
       methods: ["GET", "POST"],
       credentials: true,
     },
-  });
-
-  io.on("connection", (socket) => {
-    console.log("[socket] Client connected:", socket.id);
-    socket.on("disconnect", () => {
-      console.log("[socket] Client disconnected:", socket.id);
-    });
   });
 }
 

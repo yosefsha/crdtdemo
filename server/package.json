@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "start:docker": "tsc && node build/index.js",
     "start:build": "tsc -w",
     "start:run": "nodemon --inspect build/index.js",
     "start": "concurrently npm:start:*",

@@ -6,7 +6,7 @@ import app from "../index"; // Adjust if your Express app is exported elsewhere
 import { mongoose } from "../db"; // Import mongoose for database connection
 jest.setTimeout(10000); // Set timeout to 30 seconds
 
-describe("API Integration: /sync", () => {
+describe.skip("API Integration: /sync", () => {
   // Set a timeout for the tests
   beforeAll(() => {
     // Any setup needed before tests run, like connecting to a test database

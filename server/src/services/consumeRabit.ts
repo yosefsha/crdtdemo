@@ -1,5 +1,5 @@
 import amqp from "amqplib";
-import { emitEnrichmentResult } from "../socket";
+import { emitEnrichmentResult } from "./socket";
 
 const RABBIT_URL = process.env.RABBIT_URL || "amqp://rabbit-mq";
 const RESPONSE_QUEUE = "enrich_responses";
@@ -14,10 +14,14 @@ export async function startRabbitListener() {
     ch.consume(RESPONSE_QUEUE, (msg) => {
       if (!msg) return;
       try {
-        const { requestId, enrichedData, socketId } = JSON.parse(msg.content.toString());
+        const { requestId, enrichedData, socketId } = JSON.parse(
+          msg.content.toString()
+        );
         emitEnrichmentResult(requestId, enrichedData, socketId);
         ch.ack(msg);
-        console.log(`[rabbit] Emitted enrichment for requestId: ${requestId} to socketId: ${socketId}`);
+        console.log(
+          `[rabbit] Emitted enrichment for requestId: ${requestId} to socketId: ${socketId}`
+        );
       } catch (err) {
         console.error("[rabbit] Error processing enrichment response:", err);
         ch.nack(msg);

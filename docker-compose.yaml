@@ -2,6 +2,7 @@ services:
   traefik:
     image: traefik:v2.11
     command:
+      - "--log.level=DEBUG" # <--- Add this line for verbose logs
       - "--api.dashboard=true"
       - "--api=true"
       - "--api.insecure=true" # This allows dashboard without defining a custom router
@@ -19,7 +20,7 @@ services:
 
   server:
     labels:
-      - "traefik.http.routers.server.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.server.rule=PathPrefix(`/api`, `/socket`)"
       - "traefik.http.services.server.loadbalancer.server.port=5001"
 
     build: ./server
@@ -42,6 +43,7 @@ services:
       args:
         API_URL: /api
         MYENV: "docker"
+        SOCKET_PATH: /socket
     networks:
       - app-network
     depends_on:
@@ -99,6 +101,7 @@ services:
     build: ./enrich-worker
     environment:
       - RABBIT_URL=amqp://rabbit-mq
+      - SECRETS_PATH=./run/secrets/apiconf.json
     volumes:
       - ./secrets/apiconf.json:/run/secrets/apiconf.json:ro
     networks:

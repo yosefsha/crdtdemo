@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install the dependencies
-RUN npm install
+RUN npm install --production
 
 # Copy the rest of the files
 COPY . .
@@ -20,4 +20,4 @@ ENV PORT=5001
 # App Runner will handle HTTPS externally
 
 # Start the server
-CMD ["npm", "start"]
+CMD ["npm", "run", "start:docker"]

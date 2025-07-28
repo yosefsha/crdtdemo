@@ -7,7 +7,7 @@ const RABBIT_URL = process.env.RABBIT_URL || "amqp://rabbit-mq";
 const REQUEST_QUEUE = "enrich_requests";
 const RESPONSE_QUEUE = "enrich_responses";
 const secrets = JSON.parse(
-  fs.readFileSync("/run/secrets/xapiconf.json", "utf8")
+  fs.readFileSync(process.env.SECRETS_PATH || "../secrets/apiconf.json", "utf8")
 );
 const replicateToken = secrets.replicate.api_token;
 const replicate = new Replicate({ auth: replicateToken });

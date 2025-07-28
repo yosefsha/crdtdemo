@@ -11,6 +11,8 @@ console.log("environment: ", environment);
 
 const config = {
   apiDomain: getDefaultApiDomain(environment),
+  socketPath: process.env.REACT_APP_SOCKET_PATH || "/socket_booo",
+  env: environment,
 };
 
 function getDefaultApiDomain(env: string): string {

@@ -31,13 +31,12 @@ COPY . .
 # Declare ARG before ENV to ensure it gets a value
 ARG MYENV
 ENV MYENV=$MYENV
-
-RUN echo "MYENV is iiiiiiii: $MYENV"  # Debugging
-
 # Use it in your build
 RUN echo "Building with MYENV=$MYENV"
 ARG API_URL
+ARG SOCKET_PATH
 ENV REACT_APP_API_URL=$API_URL
+ENV REACT_APP_SOCKET_PATH=$SOCKET_PATH
 RUN echo "Building with REACT_APP_API_URL=$REACT_APP_API_URL"
 
 # RUN npm run build
