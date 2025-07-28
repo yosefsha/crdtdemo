@@ -1,4 +1,9 @@
-import React, { useRef, useEffect, forwardRef, useImperativeHandle } from "react";
+import React, {
+  useRef,
+  useEffect,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import css from "../styles/Canvas.module.css";
 import { PixelDataCRDT, PixelDelta } from "../crdt/PixelDataCRDT";
 import { RGB } from "../crdt/CRDTTypes";

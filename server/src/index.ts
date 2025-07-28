@@ -57,6 +57,10 @@ app.get("/health", (req, res) => {
 import { setupSocket } from "./services/socket";
 setupSocket(server);
 
+// Start RabbitMQ consumer for enrichment responses
+import { startEnrichmentConsumer } from "./services/consumeRabit";
+startEnrichmentConsumer();
+
 // Start the server on the configured port
 server.listen(port, () => {
   console.log(`Server is listening on ${port}!`);

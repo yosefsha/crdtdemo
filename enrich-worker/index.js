@@ -15,12 +15,12 @@ const replicate = new Replicate({ auth: replicateToken });
 async function enrichImage(base64) {
   try {
     const output = await replicate.run(
-      "stability-ai/sdxl:stable-diffusion-xl-base-1.0",
+      "stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
       {
         input: {
           image: base64,
-          prompt: "",
-          strength: 0.3, // moderate change
+          prompt: "enhance this image",
+          strength: 0.8, // moderate change
           guidance_scale: 7, // typical value
         },
       }
@@ -41,14 +41,22 @@ async function main() {
 
   ch.consume(REQUEST_QUEUE, async (msg) => {
     if (!msg) return;
-    const { base64, requestId } = JSON.parse(msg.content.toString());
+    const { base64, requestId, socketId } = JSON.parse(msg.content.toString());
+    console.log(
+      `[enrich-worker] Processing requestId: ${requestId} for socketId: ${socketId}, base64 length: ${base64.length}`
+    );
     const enrichedData = await enrichImage(base64);
     ch.sendToQueue(
       RESPONSE_QUEUE,
-      Buffer.from(JSON.stringify({ requestId, enrichedData }))
+      Buffer.from(JSON.stringify({ requestId, enrichedData, socketId }))
     );
     ch.ack(msg);
-    console.log(`[enrich-worker] Processed requestId: ${requestId}`);
+    console.info(`[enrich-worker] Processed requestId: ${requestId}`);
+    console.debug(
+      `[enrich-worker] Enriched data for requestId: ${requestId}, length: ${
+        enrichedData.length || 0
+      }`
+    );
   });
 }
 

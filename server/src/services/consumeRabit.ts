@@ -4,12 +4,18 @@ import { emitEnrichmentResult } from "./socket";
 const RABBIT_URL = process.env.RABBIT_URL || "amqp://rabbit-mq";
 const RESPONSE_QUEUE = "enrich_responses";
 
-export async function startRabbitListener() {
+export async function startEnrichmentConsumer() {
   try {
+    // Connect to RabbitMQ
+    console.info("[rabbit] Connecting to RabbitMQ at", RABBIT_URL);
+    if (!RABBIT_URL) {
+      throw new Error("RABBIT_URL environment variable is not set");
+    }
+    console.info("[rabbit] Starting RabbitMQ consumer...");
     const conn = await amqp.connect(RABBIT_URL);
     const ch = await conn.createChannel();
     await ch.assertQueue(RESPONSE_QUEUE);
-    console.log("[rabbit] Listening for enrichment responses...");
+    console.info("[rabbit] Listening for enrichment responses...");
 
     ch.consume(RESPONSE_QUEUE, (msg) => {
       if (!msg) return;
@@ -19,7 +25,7 @@ export async function startRabbitListener() {
         );
         emitEnrichmentResult(requestId, enrichedData, socketId);
         ch.ack(msg);
-        console.log(
+        console.info(
           `[rabbit] Emitted enrichment for requestId: ${requestId} to socketId: ${socketId}`
         );
       } catch (err) {

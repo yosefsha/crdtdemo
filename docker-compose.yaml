@@ -28,9 +28,11 @@ services:
       - app-network
     depends_on:
       - mongo
+      - rabbit-mq
     environment:
       - MONGO_URL=mongodb://mongo:27017/mydb
       - JWT_SECRET=supersecret
+      - RABBIT_URL=amqp://rabbit-mq
   client:
     labels:
       - "traefik.enable=true"
@@ -101,7 +103,7 @@ services:
     build: ./enrich-worker
     environment:
       - RABBIT_URL=amqp://rabbit-mq
-      - SECRETS_PATH=./run/secrets/apiconf.json
+      - SECRETS_PATH=/run/secrets/apiconf.json
     volumes:
       - ./secrets/apiconf.json:/run/secrets/apiconf.json:ro
     networks:

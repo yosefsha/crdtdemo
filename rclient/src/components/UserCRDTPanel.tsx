@@ -242,6 +242,12 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     const width = 200;
     const height = 200;
     const base64 = toBase64Image(pixelData, width, height);
+    console.log(
+      `[${getTimestamp()}] [DEBUG] Generated base64 for enrichment:`,
+      base64.substring(0, 100) + "...",
+      "Length:",
+      base64.length
+    );
     const requestId = `${userId}_${Date.now()}`;
     const socket: Socket = io("/", { path: config.socketPath }); // Use your server URL
 

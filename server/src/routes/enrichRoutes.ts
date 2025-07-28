@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 // Update the import path if needed, or create the middleware/auth.ts file with verifyJWT exported
 import { verifyJWT } from "../routes/verifyJWT";
 import { getCurrentTime } from "../services/helpers";
-import { emitEnrichmentResult } from "../services/socket";
+import amqp from "amqplib";
 
 const router = Router();
 
@@ -25,19 +25,48 @@ router.post("/enrich", verifyJWT, async (req, res) => {
 
   // Log request
   console.info(
-    `[${getCurrentTime()}] [INFO][enrich] Received enrichment request for requestId: ${requestId}`
+    `[${getCurrentTime()}] [INFO][enrich] Received enrichment request for requestId: ${requestId}, socketId: ${socketId}`
+  );
+  console.info(
+    `[${getCurrentTime()}] [DEBUG][enrich] Base64 data: ${base64?.substring(
+      0,
+      100
+    )}..., Length: ${base64?.length || 0}`
   );
 
-  // For testing: wait 5 seconds, then emit the same data back to the socket
-  setTimeout(() => {
-    emitEnrichmentResult(requestId, base64, socketId);
-    console.info(
-      `[${getCurrentTime()}] [INFO][enrich] Emitted test enrichment result for requestId: ${requestId} to socketId: ${socketId}`
+  try {
+    // Connect to RabbitMQ and publish request
+    const connection = await amqp.connect(
+      process.env.RABBIT_URL || "amqp://rabbit-mq"
     );
-  }, 5000);
+    const channel = await connection.createChannel();
 
-  // Respond immediately
-  res.status(202).json({ status: "OK", requestId });
+    await channel.assertQueue("enrich_requests", { durable: true });
+
+    const message = JSON.stringify({
+      requestId,
+      base64,
+      socketId,
+    });
+
+    channel.sendToQueue("enrich_requests", Buffer.from(message), {
+      persistent: true,
+    });
+
+    await channel.close();
+    await connection.close();
+
+    console.log(
+      `[${getCurrentTime()}] [INFO][enrich] Published enrichment request ${requestId} to queue`
+    );
+    res.status(202).json({ status: "OK", requestId });
+  } catch (error) {
+    console.error(
+      `[${getCurrentTime()}] [ERROR][enrich] Error publishing to RabbitMQ:`,
+      error
+    );
+    res.status(500).json({ message: "Failed to submit enrichment request" });
+  }
 });
 
 export default router;
