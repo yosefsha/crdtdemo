@@ -11,11 +11,10 @@ import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import { useUserAuthContext } from "./UserAuthContext";
 import config from "../config";
-
 import SyncOptions from "./SyncOptions";
 import { SyncOption } from "./SyncOptions";
-
 import type { AppUser } from "../types/app";
+import { io, Socket } from "socket.io-client";
 
 interface UserCRDTPanelProps {
   // pixelData: PixelDataCRDT;
@@ -243,97 +242,37 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     const width = 200;
     const height = 200;
     const base64 = toBase64Image(pixelData, width, height);
-    console.info(
-      `[${getTimestamp()}] [INFO] handleEnrichSync: Converting pixelData to base64 image`
-    );
-    // api call to enrich pixelData
-    // Note: This is a synchronous operation, so we can await it
-    // the api will return
+    const requestId = `${userId}_${Date.now()}`;
+    const socket: Socket = io("http://localhost:4000"); // Use your server URL
 
-    // 1. Start enrichment, generate a unique requestId and send base64 image
-    const requestId = `${userId}_${Date.now()}`; // Unique request ID
-    console.info(
-      `[${getTimestamp()}] [INFO] handleEnrichSync: Sending base64 image for enrichment with requestId: ${requestId}`
-    );
-    const res = await fetch("/api/enrich", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ base64, requestId }),
+    socket.on("connect", async () => {
+      const res = await fetch("/api/enrich", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ base64, requestId, socketId: socket.id }),
+      });
+      if (!res.ok) {
+        socket.disconnect();
+        return;
+      }
     });
-    if (!res.ok) {
-      const err = await res.json();
-      console.error(
-        `[${getTimestamp()}] [ERROR] handleEnrichSync: Failed to enrich pixelData`,
-        err
-      );
-      return;
-    }
-    const data = await res.json();
-    if (!data || !data.enrichedData) {
-      console.error(
-        `[${getTimestamp()}] [ERROR] handleEnrichSync: No enriched data received`
-      );
-      return;
-    }
-    canvasEditorRef.current?.fromBase64Image(pixelData, data.enrichedData); // Use the CanvasEditor's method to update pixelData
-    setSharedState((s) => s + 1); // Force re-render after enrichment
-    console.debug(
-      `[${getTimestamp()}] [DEBUG] handleEnrichSync: Enriched pixelData with new data`
-    );
-    console.info(
-      `[${getTimestamp()}] [INFO] handleEnrichSync: Enrichment request sent successfully: ${requestId}`
-    );
-    // 2. Open WebSocket to wait for enriched result
-    // socket.current = new WebSocket("wss://yourserver.com/ws");
 
-    // socket.current.onopen = () => {
-    //   console.info(
-    //     `[${getTimestamp()}] [INFO] handleEnrichSync: WebSocket connection opened`
-    //   );
-    //   // socket.current?.send(JSON.stringify({ action: "subscribe", requestId }));
-    // };
+    socket.on("enrichment-result", (data) => {
+      if (data.requestId === requestId) {
+        const newpd = new PixelDataCRDT(userId, replicaId);
+        pixelData = newpd;
+        canvasEditorRef.current?.fromBase64Image(newpd, data.enrichedData);
+        setSharedState((s) => s + 1);
+        socket.disconnect();
+      }
+    });
 
-    if (socket.current) {
-      // socket.current.onmessage = (event) => {
-      //   const data = JSON.parse(event.data);
-      //   if (data.type === "enriched-result" && data.requestId === requestId) {
-      //     console.log("Got enriched result!", data.enrichedData);
-      //     socket.current?.close();
-      //     // Enrich pixelData with the received data
-      //     const newpd = new PixelDataCRDT(userId, replicaId);
-      //     pixelData = newpd;
-      //     // get reference to the CanvasEditor
-      //     console.info(
-      //       `[${getTimestamp()}] [INFO] handleEnrichSync: Enriched pixelData with new CRDT instance`
-      //     );
-      //     canvasEditorRef.current?.fromBase64Image(newpd, data.enrichedData); // Use the CanvasEditor's method to update pixelData
-      //     setSharedState((s) => s + 1); // Force re-render after enrichment
-      //     console.info(
-      //       `[${getTimestamp()}] [INFO] handleEnrichSync: Enriched pixelData from WebSocket result`
-      //     );
-      //   } else {
-      //     console.warn(
-      //       `[${getTimestamp()}] [WARN] handleEnrichSync: Received unexpected message:`,
-      //       data
-      //     );
-      //   }
-      // };
-    }
-
-    // socket.current.onerror = (error) => {
-    //   console.error(
-    //     `[${getTimestamp()}] [ERROR] handleEnrichSync: WebSocket error:`,
-    //     error
-    //   );
-    // };
-    // socket.current.onclose = () => {
-    //   console.info(
-    //     `[${getTimestamp()}] [INFO] handleEnrichSync: WebSocket connection closed`
-    //   );
-    // };
+    socket.on("connect_error", (err) => {
+      socket.disconnect();
+    });
   }
 
   function handleStateChange() {

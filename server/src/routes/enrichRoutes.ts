@@ -23,20 +23,21 @@ router.post("/enrich", verifyJWT, async (req, res) => {
   // Parse the incoming data
   const { base64, requestId, socketId } = req.body;
 
-  // Simulate opening a socket (dummy, not a real socket)
+  // Log request
   console.info(
-    `[${getCurrentTime()}] [INFO][enrich] Opened dummy socket for requestId: ${requestId}`
-  );
-  // Do nothing with the data, just echo it back
-  const enrichedData = base64;
-  // Simulate closing the socket
-  console.info(
-    `[${getCurrentTime()}] [INFO][enrich] Closed dummy socket for requestId: ${requestId}`
+    `[${getCurrentTime()}] [INFO][enrich] Received enrichment request for requestId: ${requestId}`
   );
 
-  // Return the enriched data
-  emitEnrichmentResult(requestId, enrichedData, socketId); // Use socketId for targeted emit
-  res.json({ type: "enriched-result", requestId, enrichedData });
+  // For testing: wait 5 seconds, then emit the same data back to the socket
+  setTimeout(() => {
+    emitEnrichmentResult(requestId, base64, socketId);
+    console.info(
+      `[${getCurrentTime()}] [INFO][enrich] Emitted test enrichment result for requestId: ${requestId} to socketId: ${socketId}`
+    );
+  }, 5000);
+
+  // Respond immediately
+  res.status(202).json({ status: "OK", requestId });
 });
 
 export default router;
