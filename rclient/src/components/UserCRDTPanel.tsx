@@ -16,6 +16,12 @@ import { SyncOption } from "./SyncOptions";
 import type { AppUser } from "../types/app";
 import { io, Socket } from "socket.io-client";
 
+// Canvas and CRDT dimension constants
+const CANVAS_WIDTH = 200;
+const CANVAS_HEIGHT = 200;
+const CRDT_WIDTH = 512; // High resolution for enhanced images
+const CRDT_HEIGHT = 512;
+
 interface UserCRDTPanelProps {
   // pixelData: PixelDataCRDT;
   otherUserId: string; // Add this line
@@ -240,11 +246,11 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
   }
 
   async function handleEnrichSync() {
-    const width = 200;
-    const height = 200;
-    const base64 = toBase64Image(pixelData, width, height);
+    const base64 = toBase64Image(pixelData, CRDT_WIDTH, CRDT_HEIGHT);
     console.info(
       `[${getTimestamp()}] Generated base64 for enrichment:`,
+      "Dimensions:",
+      `${CRDT_WIDTH}x${CRDT_HEIGHT}`,
       "Length:",
       base64.length
     );
@@ -269,9 +275,25 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     socket.on("enrichment-result", async (data) => {
       if (data.requestId === requestId) {
         console.info(
-          `[${getTimestamp()}] enrichment result received, Length:`,
-          data.enrichedData.length
+          `[${getTimestamp()}] enrichment result received:`,
+          "Type:",
+          typeof data.enrichedData,
+          "Length:",
+          data.enrichedData?.length,
+          "Value preview:",
+          data.enrichedData?.substring
+            ? data.enrichedData.substring(0, 50) + "..."
+            : data.enrichedData
         );
+
+        if (!data.enrichedData || typeof data.enrichedData !== "string") {
+          console.error(
+            `[${getTimestamp()}] Invalid enrichment data received:`,
+            data.enrichedData
+          );
+          socket.disconnect();
+          return;
+        }
 
         // Use the existing pixelData instead of creating a new one
         canvasEditorRef.current?.fromBase64Image(pixelData, data.enrichedData);
@@ -325,8 +347,8 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
       />
       <CanvasEditor
         ref={canvasEditorRef}
-        width={200}
-        height={200}
+        width={CANVAS_WIDTH}
+        height={CANVAS_HEIGHT}
         color={[0, 0, 0]}
         pixelData={pixelData}
         onStateChange={token ? handleStateChange : () => {}}

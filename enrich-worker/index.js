@@ -14,16 +14,26 @@ const replicate = new Replicate({ auth: replicateToken });
 
 async function enrichImage(base64) {
   try {
+    console.log(
+      "[enrich-worker] Input base64 preview:",
+      base64.substring(0, 100) + "..."
+    );
+    console.log("[enrich-worker] Input base64 length:", base64.length);
     console.log("[enrich-worker] Calling Replicate API...");
+    // Use SDXL with img2img for creative enhancement of drawings
     const output = await replicate.run(
       "stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
       {
         input: {
           image: base64,
-          prompt: "enhance this image, make it more detailed and artistic",
-          strength: 0.8, // moderate change
-          guidance_scale: 7, // typical value
-          disable_safety_checker: true, // Disable NSFW detection for canvas drawings
+          prompt:
+            "enhance this simple drawing by adding creative details like windows, doors, sun, clouds, trees, flowers, or other appropriate elements that would make the drawing more complete and interesting, keep the original drawing style, digital art",
+          strength: 0.2, // More subtle creative additions
+          guidance_scale: 8, // Higher guidance for better prompt following
+          num_inference_steps: 25,
+          width: 512,
+          height: 512,
+          disable_safety_checker: true,
         },
       }
     );
@@ -32,6 +42,51 @@ async function enrichImage(base64) {
       "[enrich-worker] Replicate API response:",
       Array.isArray(output) ? `Array with ${output.length} items` : output
     );
+
+    // Handle direct ReadableStream response (Real-ESRGAN sometimes returns this directly)
+    if (output && typeof output === "object" && "getReader" in output) {
+      console.log(
+        "[enrich-worker] Converting direct ReadableStream to base64..."
+      );
+      const reader = output.getReader();
+      const chunks = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+
+      const buffer = Buffer.concat(chunks);
+      const base64Result = `data:image/png;base64,${buffer.toString("base64")}`;
+      console.log(
+        "[enrich-worker] Converted to base64, length:",
+        base64Result.length
+      );
+      return base64Result;
+    }
+
+    // Real-ESRGAN returns a single URL string, not an array
+    if (typeof output === "string") {
+      console.log("[enrich-worker] Got URL string:", output);
+
+      // If it's a URL, fetch the image and convert to base64
+      if (output.startsWith("http")) {
+        console.log("[enrich-worker] Fetching image from URL...");
+        const response = await fetch(output);
+        const buffer = await response.arrayBuffer();
+        const base64Result = `data:image/png;base64,${Buffer.from(
+          buffer
+        ).toString("base64")}`;
+        console.log(
+          "[enrich-worker] Converted URL to base64, length:",
+          base64Result.length
+        );
+        return base64Result;
+      }
+
+      return output;
+    }
 
     if (Array.isArray(output) && output.length > 0) {
       const firstItem = output[0];
@@ -69,7 +124,8 @@ async function enrichImage(base64) {
       return firstItem;
     }
 
-    return output; // Fallback
+    console.log("[enrich-worker] Unexpected output format:", output);
+    return base64; // Return original if we can't process the output
   } catch (err) {
     console.error("[enrich-worker] Error enriching image via Replicate:", err);
     return base64;
