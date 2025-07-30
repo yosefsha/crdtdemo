@@ -29,9 +29,9 @@ app.use(
   })
 );
 
-// Use body-parser middleware
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// Use body-parser middleware with increased size limits
+app.use(bodyParser.json({ limit: "10mb" }));
+app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 
 // Use cookie-session middleware
 app.use(
