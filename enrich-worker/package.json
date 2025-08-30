@@ -1,0 +1,14 @@
+{
+  "name": "enrich-worker",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "main": "node index.js"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.3",
+    "express": "^4.18.2",
+    "replicate": "^1.0.1"
+  }
+}

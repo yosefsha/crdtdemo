@@ -1,7 +1,7 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useRef } from "react";
 import { getTimestamp } from "../helpers";
 import AuthPage from "./AuthPage";
-import CanvasEditor from "./CanvasEditor";
+import CanvasEditor, { toBase64Image } from "./CanvasEditor";
 import {
   MergeResult,
   PixelDataCRDT,
@@ -11,11 +11,16 @@ import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import { useUserAuthContext } from "./UserAuthContext";
 import config from "../config";
-
 import SyncOptions from "./SyncOptions";
 import { SyncOption } from "./SyncOptions";
-
 import type { AppUser } from "../types/app";
+import { io, Socket } from "socket.io-client";
+
+// Canvas and CRDT dimension constants
+const CANVAS_WIDTH = 200;
+const CANVAS_HEIGHT = 200;
+const CRDT_WIDTH = 512; // High resolution for enhanced images
+const CRDT_HEIGHT = 512;
 
 interface UserCRDTPanelProps {
   // pixelData: PixelDataCRDT;
@@ -34,7 +39,6 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     (state: RootState) =>
       (state as any)[sliceKey] as { user?: AppUser; token?: string }
   );
-  // Assume sliceKey is agentId, and we use a unique replicaId per tab (could use Date.now() or uuid)
 
   // Use empty string for userId if not present (e.g., before registration)
   const {
@@ -51,10 +55,13 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     () => `${userId}_server`, // Use userId for server replica
     [userId]
   );
-  const pixelData = useMemo(
-    () => new PixelDataCRDT(userId, replicaId),
-    [token]
-  );
+  let pixelData = useMemo(() => new PixelDataCRDT(userId, replicaId), [token]);
+
+  const socket = useRef<WebSocket | null>(null);
+  const canvasEditorRef = useRef<{
+    fromBase64Image: (crdt: PixelDataCRDT, base64: string) => void;
+  } | null>(null);
+
   React.useEffect(() => {
     console.debug(
       `[${getTimestamp()}] [DEBUG] UserCRDTPanel: user object:`,
@@ -68,6 +75,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
       onLoggedInUserId(userId);
     }
   }, [userId, onLoggedInUserId]);
+
   React.useEffect(() => {
     console.info(
       `[${getTimestamp()}] [INFO] UserCRDTPanel: Rendered for sliceKey:`,
@@ -237,8 +245,68 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     }
   }
 
-  function handleEnrichSync() {
-    // Implement enrich sync logic here
+  async function handleEnrichSync() {
+    const base64 = toBase64Image(pixelData, CRDT_WIDTH, CRDT_HEIGHT);
+    console.info(
+      `[${getTimestamp()}] Generated base64 for enrichment:`,
+      "Dimensions:",
+      `${CRDT_WIDTH}x${CRDT_HEIGHT}`,
+      "Length:",
+      base64.length
+    );
+    const requestId = `${userId}_${Date.now()}`;
+    const socket: Socket = io("/", { path: config.socketPath });
+
+    socket.on("connect", async () => {
+      const res = await fetch("/api/enrich", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ base64, requestId, socketId: socket.id }),
+      });
+      if (!res.ok) {
+        socket.disconnect();
+        return;
+      }
+    });
+
+    socket.on("enrichment-result", async (data) => {
+      if (data.requestId === requestId) {
+        console.info(
+          `[${getTimestamp()}] enrichment result received:`,
+          "Type:",
+          typeof data.enrichedData,
+          "Length:",
+          data.enrichedData?.length,
+          "Value preview:",
+          data.enrichedData?.substring
+            ? data.enrichedData.substring(0, 50) + "..."
+            : data.enrichedData
+        );
+
+        if (!data.enrichedData || typeof data.enrichedData !== "string") {
+          console.error(
+            `[${getTimestamp()}] Invalid enrichment data received:`,
+            data.enrichedData
+          );
+          socket.disconnect();
+          return;
+        }
+
+        // Use the existing pixelData instead of creating a new one
+        canvasEditorRef.current?.fromBase64Image(pixelData, data.enrichedData);
+
+        console.info(`[${getTimestamp()}] enrichment result applied to canvas`);
+        setSharedState((s) => s + 1);
+        socket.disconnect();
+      }
+    });
+
+    socket.on("connect_error", (err) => {
+      socket.disconnect();
+    });
   }
 
   function handleStateChange() {
@@ -278,8 +346,9 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
         onChange={(val: SyncOption) => setSyncOption(val)}
       />
       <CanvasEditor
-        width={200}
-        height={200}
+        ref={canvasEditorRef}
+        width={CANVAS_WIDTH}
+        height={CANVAS_HEIGHT}
         color={[0, 0, 0]}
         pixelData={pixelData}
         onStateChange={token ? handleStateChange : () => {}}

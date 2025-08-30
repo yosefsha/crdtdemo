@@ -9,7 +9,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requireAuth = requireAuth;
 const express_1 = require("express");
 const verifyJWT_1 = require("./verifyJWT");
 const router = (0, express_1.Router)();
@@ -52,14 +51,18 @@ router.post("/login", (req, res) => {
     return forwardRequest("/auth/login", req, res);
 });
 router.post("/logout", (req, res) => forwardRequest("/auth/logout", req, res));
-function requireAuth(req, res, next) {
-    if (req.session && req.session.loggedIn) {
-        next();
-        return;
-    }
-    res.status(403);
-    res.send("Not permitted");
-}
+/*
+ * Middleware to check if user is authenticated
+ * This is a placeholder for session-based auth, replaced with JWT logic completely
+ */
+// export function requireAuth(req: Request, res: Response, next: NextFunction) {
+//   if (req.session && req.session.loggedIn) {
+//     next();
+//     return;
+//   }
+//   res.status(403);
+//   res.send("Not permitted");
+// }
 router.get("/", (req, res) => {
     // Remove session logic, just return a simple message or status
     res.send({
@@ -81,7 +84,7 @@ router.get("/", (req, res) => {
 //     });
 //   }
 // });
-router.get("/restricted", requireAuth, (req, res) => {
+router.get("/restricted", (req, res) => {
     res.send(`
         <div>
             <div>You are logged in restricted area</div>

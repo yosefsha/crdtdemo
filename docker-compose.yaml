@@ -2,6 +2,7 @@ services:
   traefik:
     image: traefik:v2.11
     command:
+      - "--log.level=DEBUG" # <--- Add this line for verbose logs
       - "--api.dashboard=true"
       - "--api=true"
       - "--api.insecure=true" # This allows dashboard without defining a custom router
@@ -19,17 +20,21 @@ services:
 
   server:
     labels:
-      - "traefik.http.routers.server.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.server.rule=PathPrefix(`/api`, `/socket`)"
       - "traefik.http.services.server.loadbalancer.server.port=5001"
+      - "traefik.http.middlewares.server-body-limit.buffering.maxRequestBodyBytes=52428800"
+      - "traefik.http.routers.server.middlewares=server-body-limit"
 
     build: ./server
     networks:
       - app-network
     depends_on:
       - mongo
+      - rabbit-mq
     environment:
       - MONGO_URL=mongodb://mongo:27017/mydb
       - JWT_SECRET=supersecret
+      - RABBIT_URL=amqp://rabbit-mq
   client:
     labels:
       - "traefik.enable=true"
@@ -42,6 +47,7 @@ services:
       args:
         API_URL: /api
         MYENV: "docker"
+        SOCKET_PATH: /socket
     networks:
       - app-network
     depends_on:
@@ -94,6 +100,18 @@ services:
       - RABBITMQ_DEFAULT_PASS=guest
     networks:
       - app-network
+
+  enrich-worker:
+    build: ./enrich-worker
+    environment:
+      - RABBIT_URL=amqp://rabbit-mq
+      - SECRETS_PATH=/run/secrets/apiconf.json
+    volumes:
+      - ./secrets/apiconf.json:/run/secrets/apiconf.json:ro
+    networks:
+      - app-network
+    depends_on:
+      - rabbit-mq
 
 networks:
   app-network:
