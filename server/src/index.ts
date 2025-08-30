@@ -29,6 +29,13 @@ app.use(
   })
 );
 
+// Health endpoint for CI/CD checks
+app.get("/api/health", (_req, res) => {
+  res
+    .status(200)
+    .json({ status: "ok", service: "server", ts: new Date().toISOString() });
+});
+
 // Use body-parser middleware with increased size limits
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
