@@ -1,0 +1,136 @@
+Yosef Shachnovsky
+
+
+sh.yosef@gmail.com
+0545502860
+https://www.linkedin.com/in/yosef-shachnovsky-140a6418/
+https://github.com/yosefsha
+
+
+
+------------------------
+Back End Developer
+
+
+------------------------
+Experienced backend developer with expertise in distributed systems, scalable APIs, and resilient data pipelines. Skilled in designing and maintaining databases using Node.js, Python, AWS, DynamoDB, PostgreSQL, and Elasticsearch. Proven track record of building backend services that support AI-driven devices, real-time synchronization, and data-rich applications.
+
+
+Work Experience
+------------------------
+Back End Developer
+OrCam Technologies
+05/2021 - 12/2024
+Achievements/Tasks
+- Designed and maintained a dedicated database using AWS DynamoDB and S3 with distributed synchronization across wearable devices, mobile/web apps, and servers. 
+- Implemented scalable serverless operations with AWS Lambda. 
+- Developed RESTful APIs for wearable, mobile, and web clients using Node.js (Typescript) and AWS CloudFormation. 
+- Built cross-platform web applications (Svelte.js) to manage and enrich the user experience of OrCam’s AI-powered wearable devices. 
+
+
+
+Mobile and web Developer
+OrCam Technologies
+04/2018 - 05/2023
+OrCam develops AI-driven wearable devices that empower individuals with visual impairments and reading challenges through text-to-speech, facial recognition, and object recognition.
+Achievements/Tasks
+- Developed and maintained cross-platform  and native iOS applications  using  Swift, Objective-C, and TypeScript , enhancing the user experience of OrCam’s AI-based wearable devices. 
+- Built communication infrastructure between mobile apps and devices over BLE in  Swift/Objective-C , and implemented a dedicated LevelDB-based local database  to synchronize data between the device and the app . 
+- Partnered with product and research teams to integrate advanced AI features into consumer-facing applications. 
+
+
+
+Back End Developer
+SmartBus transportation solution
+07/2016 - 04/2018
+SmartBus is developing a better way to use public transport and shuttles. We're building a bidding system that saves transport costs for groups (B2B, B2B2C).
+Achievements/Tasks
+- Developing and maintaining RESTful APIs for all different clients in the project including Web, Android and iOS based clients, using Python flask and SQLAalchemy frameworks. 
+
+
+
+Project Manager
+Predicta Ltd - Financial services
+07/2010 - 09/2015
+Achievements/Tasks
+- Developed and applied rating models for mutual funds and ETFs. Led data supply and maintenance projects for major financial institutions. Managed data acquisition and integration from local and global sources into the company database. 
+
+
+
+
+
+
+Personal Projects
+------------------------
+CRDT Demo
+- <b>Collaborative Pixel Editor (CRDT Demo)</b>     <span>Built a real-time distributed pixel editing application using a custom CRDT for synchronization across clients. Developed with a React frontend and Node.js backend, showcasing hands-on experience with conflict-free data replication, WebSockets, and eventual consistency.</span>     GitHub:  github.com/yosefsha/crdtdemo 
+
+
+
+
+
+Technical Skills
+------------------------
+Backend & APIs
+Node.js, Flask, RESTful APIs, DynamoDB, PostgreSQL/SQL, Elasticsearch, Distributed Systems, Database Design
+
+
+Cloud & DevOps
+AWS (Lambda, CloudFormation, DynamoDB, S3), Docker, Kubernetes
+
+
+Frontend
+React.js, Svelte.js, HTML, CSS, BLE Communication
+
+
+Languages
+TypeScript, Python, JavaScript, Swift, Objective-C, C
+
+
+
+
+
+Education
+------------------------
+Software Architecture Course
+Experts Academy
+08/2024 - 11/2024
+Courses
+
+
+Experis software bootcamp - an advanced Software Development workshop
+Experis Software Tel Aviv
+09/2015 - 03/2016
+Courses
+
+
+M.A in Economics with focus on finance and banking
+Bar Ilan University
+10/2009 - 06/2012
+Courses
+
+
+B.A Economics
+Ben Gurion Univercity
+09/2006 - 06/2009
+Courses
+
+
+
+
+
+Languages
+------------------------
+-English- (80/100)
+-Hebrew- (100/100)
+-Russian- (40/100)
+
+
+
+Interests
+------------------------
+-Chess
+-Photography
+
+
+

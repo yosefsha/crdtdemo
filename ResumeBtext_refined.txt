@@ -1,0 +1,97 @@
+Here’s a structured summary of the provided text, highlighting key information about Yosef Shachnovsky:
+
+---
+
+**Contact Information:**
+- **Name:** Yosef Shachnovsky
+- **Email:** sh.yosef@gmail.com
+- **Phone:** 0545502860
+- **LinkedIn:** [Yosef Shachnovsky LinkedIn](https://www.linkedin.com/in/yosef-shachnovsky-140a6418/)
+- **GitHub:** [Yosef Shachnovsky GitHub](https://github.com/yosefsha)
+
+---
+
+**Professional Summary:**
+- **Title:** Back End Developer
+- **Experience:** Skilled in backend development, distributed systems, scalable APIs, and resilient data pipelines. Proficient in database design and maintenance using Node.js, Python, AWS, DynamoDB, PostgreSQL, and Elasticsearch. Experienced in building backend services for AI-driven devices and data-rich applications.
+
+---
+
+**Work Experience:**
+
+1. **Back End Developer**  
+   **Company:** OrCam Technologies  
+   **Duration:** 05/2021 - 12/2024  
+   **Key Achievements:**
+   - Designed and maintained a database using AWS DynamoDB and S3 with distributed synchronization.
+   - Implemented serverless operations with AWS Lambda.
+   - Developed RESTful APIs using Node.js (Typescript) and AWS CloudFormation.
+   - Built cross-platform web applications (Svelte.js) for enhancing user experience.
+
+2. **Mobile and Web Developer**  
+   **Company:** OrCam Technologies  
+   **Duration:** 04/2018 - 05/2023  
+   **Key Achievements:**
+   - Developed cross-platform and native iOS applications using Swift, Objective-C, and TypeScript.
+   - Built communication infrastructure over BLE and implemented a LevelDB-based local database.
+   - Collaborated with product and research teams to integrate AI features.
+
+3. **Back End Developer**  
+   **Company:** SmartBus Transportation Solution  
+   **Duration:** 07/2016 - 04/2018  
+   **Key Achievements:**
+   - Developed and maintained RESTful APIs for various clients using Python Flask and SQLAlchemy.
+
+4. **Project Manager**  
+   **Company:** Predicta Ltd - Financial Services  
+   **Duration:** 07/2010 - 09/2015  
+   **Key Achievements:**
+   - Developed rating models for mutual funds and ETFs.
+   - Managed data acquisition and integration projects for financial institutions.
+
+---
+
+**Personal Projects:**
+- **CRDT Demo:** Collaborative Pixel Editor  
+  - Built a real-time distributed pixel editing application using a custom CRDT for synchronization. Developed with a React frontend and Node.js backend.  
+  - GitHub: [CRDT Demo](https://github.com/yosefsha/crdtdemo)
+
+---
+
+**Technical Skills:**
+- **Backend & APIs:** Node.js, Flask, RESTful APIs, DynamoDB, PostgreSQL, Elasticsearch, Distributed Systems, Database Design
+- **Cloud & DevOps:** AWS (Lambda, CloudFormation, DynamoDB, S3), Docker, Kubernetes
+- **Frontend:** React.js, Svelte.js, HTML, CSS, BLE Communication
+- **Languages:** TypeScript, Python, JavaScript, Swift, Objective-C, C
+
+---
+
+**Education:**
+- **Software Architecture Course**  
+  Experts Academy (08/2024 - 11/2024)
+
+- **Experis Software Bootcamp**  
+  Experis Software Tel Aviv (09/2015 - 03/2016)
+
+- **M.A. in Economics (Finance and Banking)**  
+  Bar Ilan University (10/2009 - 06/2012)
+
+- **B.A. in Economics**  
+  Ben Gurion University (09/2006 - 06/2009)
+
+---
+
+**Languages:**
+- English: 80/100
+- Hebrew: 100/100
+- Russian: 40/100
+
+---
+
+**Interests:**
+- Chess
+- Photography
+
+--- 
+
+This summary captures the essential details of Yosef Shachnovsky's professional background, skills, and interests.
