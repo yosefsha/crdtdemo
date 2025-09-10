@@ -86,10 +86,17 @@ services:
 
   rabbit-mq:
     image: rabbitmq:3
-    ports:
-      - "5672:5672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   rabbit-mq-ui:
     image: rabbitmq:3-management
@@ -111,7 +118,9 @@ services:
     networks:
       - app-network
     depends_on:
-      - rabbit-mq
+      rabbit-mq:
+        condition: service_healthy # Wait for RabbitMQ to be healthy
+    restart: unless-stopped
 
 networks:
   app-network:
