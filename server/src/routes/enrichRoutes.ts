@@ -5,6 +5,50 @@ import { getCurrentTime } from "../services/helpers";
 import amqp from "amqplib";
 
 const router = Router();
+import chunkAssembler from "../services/chunkService";
+
+// Function to handle enrichment through RabbitMQ
+async function enrichImage(data: {
+  base64: string;
+  requestId: string;
+  socketId: string;
+}) {
+  const { base64, requestId, socketId } = data;
+
+  try {
+    // Connect to RabbitMQ and publish request
+    const connection = await amqp.connect(
+      process.env.RABBIT_URL || "amqp://rabbit-mq"
+    );
+    const channel = await connection.createChannel();
+
+    await channel.assertQueue("enrich_requests", { durable: true });
+
+    const message = JSON.stringify({
+      requestId,
+      base64,
+      socketId,
+    });
+
+    channel.sendToQueue("enrich_requests", Buffer.from(message), {
+      persistent: true,
+    });
+
+    await channel.close();
+    await connection.close();
+
+    console.log(
+      `[${getCurrentTime()}] [INFO][enrich] Published enrichment request ${requestId} to queue`
+    );
+    return { status: "OK", requestId };
+  } catch (error) {
+    console.error(
+      `[${getCurrentTime()}] [ERROR][enrich] Error publishing to RabbitMQ:`,
+      error
+    );
+    throw new Error("Failed to submit enrichment request");
+  }
+}
 
 router.post("/enrich", verifyJWT, async (req, res) => {
   if (!req.body) {
@@ -35,37 +79,64 @@ router.post("/enrich", verifyJWT, async (req, res) => {
   );
 
   try {
-    // Connect to RabbitMQ and publish request
-    const connection = await amqp.connect(
-      process.env.RABBIT_URL || "amqp://rabbit-mq"
-    );
-    const channel = await connection.createChannel();
-
-    await channel.assertQueue("enrich_requests", { durable: true });
-
-    const message = JSON.stringify({
-      requestId,
-      base64,
-      socketId,
-    });
-
-    channel.sendToQueue("enrich_requests", Buffer.from(message), {
-      persistent: true,
-    });
-
-    await channel.close();
-    await connection.close();
-
-    console.log(
-      `[${getCurrentTime()}] [INFO][enrich] Published enrichment request ${requestId} to queue`
-    );
-    res.status(202).json({ status: "OK", requestId });
+    const result = await enrichImage({ base64, requestId, socketId });
+    res.status(202).json(result);
   } catch (error) {
     console.error(
-      `[${getCurrentTime()}] [ERROR][enrich] Error publishing to RabbitMQ:`,
+      `[${getCurrentTime()}] [ERROR][enrich] Error processing enrichment:`,
       error
     );
     res.status(500).json({ message: "Failed to submit enrichment request" });
+  }
+});
+
+// Handle chunked enrichment requests
+router.post("/enrich-chunked", async (req, res) => {
+  try {
+    const chunk = req.body;
+    const { metadata, data } = chunk;
+
+    console.log(
+      `Received chunk ${metadata.chunkIndex + 1}/${
+        metadata.totalChunks
+      } for session ${metadata.sessionId}`
+    );
+
+    // Store chunk
+    await chunkAssembler.addChunk(metadata.sessionId, chunk);
+
+    // Check if all chunks received
+    if (await chunkAssembler.isComplete(metadata.sessionId)) {
+      console.log(
+        `All chunks received for session ${metadata.sessionId}, processing...`
+      );
+
+      // Reassemble and process
+      const fullData = await chunkAssembler.assembleChunks(metadata.sessionId);
+      const originalRequest = JSON.parse(fullData);
+      const enrichedResult = await enrichImage(originalRequest);
+
+      // Clean up stored chunks
+      await chunkAssembler.cleanup(metadata.sessionId);
+
+      res.json({
+        success: true,
+        chunkIndex: metadata.chunkIndex,
+        isComplete: true,
+        finalResult: enrichedResult,
+      });
+    } else {
+      // Just acknowledge chunk receipt
+      res.json({
+        success: true,
+        chunkIndex: metadata.chunkIndex,
+        isComplete: false,
+        message: "Chunk received, waiting for more",
+      });
+    }
+  } catch (error: any) {
+    console.error("Chunk processing error:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 

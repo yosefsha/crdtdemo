@@ -252,23 +252,31 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
       "Dimensions:",
       `${CRDT_WIDTH}x${CRDT_HEIGHT}`,
       "Length:",
-      base64.length
+      base64.length,
+      "Size (MB):",
+      (base64.length / 1024 / 1024).toFixed(2)
     );
     const requestId = `${userId}_${Date.now()}`;
     const socket: Socket = io("/", { path: config.socketPath });
 
     socket.on("connect", async () => {
-      const res = await fetch("/api/enrich", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ base64, requestId, socketId: socket.id }),
-      });
-      if (!res.ok) {
+      try {
+        const res = await fetch("/api/enrich", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ base64, requestId, socketId: socket.id }),
+        });
+        if (!res.ok) {
+          console.error(`[${getTimestamp()}] Enrichment request failed:`, res.status, res.statusText);
+          socket.disconnect();
+          return;
+        }
+      } catch (error) {
+        console.error(`[${getTimestamp()}] Error sending enrichment request:`, error);
         socket.disconnect();
-        return;
       }
     });
 
@@ -280,6 +288,8 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
           typeof data.enrichedData,
           "Length:",
           data.enrichedData?.length,
+          "Size (MB):",
+          data.enrichedData?.length ? (data.enrichedData.length / 1024 / 1024).toFixed(2) : "N/A",
           "Value preview:",
           data.enrichedData?.substring
             ? data.enrichedData.substring(0, 50) + "..."
@@ -295,8 +305,20 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
           return;
         }
 
+        // Log CRDT size before applying enrichment
+        const crdtSizeBefore = Object.keys(pixelData.values).length;
+        console.info(
+          `[${getTimestamp()}] CRDT state before enrichment: ${crdtSizeBefore} pixels`
+        );
+
         // Use the existing pixelData instead of creating a new one
         canvasEditorRef.current?.fromBase64Image(pixelData, data.enrichedData);
+
+        // Log CRDT size after applying enrichment
+        const crdtSizeAfter = Object.keys(pixelData.values).length;
+        console.info(
+          `[${getTimestamp()}] CRDT state after enrichment: ${crdtSizeAfter} pixels (change: +${crdtSizeAfter - crdtSizeBefore})`
+        );
 
         console.info(`[${getTimestamp()}] enrichment result applied to canvas`);
         setSharedState((s) => s + 1);
@@ -305,6 +327,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     });
 
     socket.on("connect_error", (err) => {
+      console.error(`[${getTimestamp()}] Socket connection error:`, err);
       socket.disconnect();
     });
   }
