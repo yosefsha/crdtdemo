@@ -15,6 +15,8 @@ import SyncOptions from "./SyncOptions";
 import { SyncOption } from "./SyncOptions";
 import type { AppUser } from "../types/app";
 import { io, Socket } from "socket.io-client";
+// TEST: Import from shared to verify compilation
+import { CRDTDatabase } from "@crdtdemo/shared";
 
 // Canvas and CRDT dimension constants
 const CANVAS_WIDTH = 200;

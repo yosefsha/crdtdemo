@@ -5,6 +5,8 @@
 import { getTimestamp } from "../services/helpers";
 import { LWWMap } from "./CRDTTypes";
 import type { RGB, ReplicaId, AgentId, Key } from "./CRDTTypes";
+// TEST: Import from shared to verify compilation
+import { CRDTDatabase } from "@crdtdemo/shared";
 
 export interface PixelDelta {
   x: number;

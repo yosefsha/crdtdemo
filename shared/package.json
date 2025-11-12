@@ -1,0 +1,16 @@
+{
+  "name": "@crdtdemo/shared",
+  "version": "1.0.0",
+  "description": "Shared CRDT types and implementations (source only)",
+  "main": "index.ts",
+  "types": "index.ts",
+  "scripts": {
+    "test": "echo \"No tests yet\""
+  },
+  "keywords": [
+    "crdt",
+    "shared"
+  ],
+  "author": "",
+  "license": "MIT"
+}

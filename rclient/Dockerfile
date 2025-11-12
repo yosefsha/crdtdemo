@@ -17,15 +17,20 @@ FROM node:16 AS build
 # Set the working directory
 WORKDIR /app
 
-# Copy the package.json and package-lock.json files
+# Copy the shared folder first
+COPY shared/ ./shared/
 
-COPY package.json package-lock.json ./
+# Set working directory for rclient
+WORKDIR /app/rclient
+
+# Copy the package.json and package-lock.json files
+COPY rclient/package.json rclient/package-lock.json ./
 
 # Install the dependencies
 RUN npm install
 
-# Copy the rest of the files
-COPY . .
+# Copy the rest of the rclient files
+COPY rclient/ .
 
 # Build the react app
 # Declare ARG before ENV to ensure it gets a value
@@ -47,10 +52,10 @@ FROM nginx:alpine
 
 WORKDIR /usr/share/nginx/html
 # Copy the build directory to the nginx html directory
-COPY --from=build /app/build .
+COPY --from=build /app/rclient/build .
 
 # Copy custom nginx config for SPA fallback
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY rclient/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Expose port 80
 EXPOSE 80
