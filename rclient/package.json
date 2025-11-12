@@ -56,5 +56,16 @@
     "jsdom": "^25.0.1",
     "prettier": "^3.4.2",
     "ts-jest": "^29.2.5"
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "^@crdtdemo/shared$": "<rootDir>/../shared/index.ts",
+      "^@crdtdemo/shared/(.*)$": "<rootDir>/../shared/$1",
+      "\\.(css|less|scss|sass)$": "identity-obj-proxy",
+      "\\.(gif|ttf|eot|svg|png)$": "<rootDir>/__mocks__/fileMock.js"
+    },
+    "transformIgnorePatterns": [
+      "node_modules/(?!(react-router-dom|react-router|@remix-run)/)"
+    ]
   }
 }
