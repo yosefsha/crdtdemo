@@ -22,10 +22,17 @@ router.get("/sync", verifyJWT, async (req, res) => {
     // Load the user's CRDT data
     console.debug("Loading CRDT data for user:", userId);
     const packet = await crdtService.getAllReplicaDeltas(userId);
+
+    // Count total deltas across all collections
+    let totalDeltas = 0;
+    if (packet?.collectionDeltas) {
+      for (const deltas of packet.collectionDeltas.values()) {
+        totalDeltas += deltas.length;
+      }
+    }
+
     console.info(
-      `[${getCurrentTime()}] Loaded CRDT deltas for user: ${userId}: ${
-        packet?.deltas?.length || 0
-      } deltas `
+      `[${getCurrentTime()}] Loaded CRDT deltas for user: ${userId}: ${totalDeltas} deltas `
     );
     // If no CRDT data found, return 404
     if (!packet) {

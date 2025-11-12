@@ -1,10 +1,10 @@
 # This docker file will create a docker image for the rclient react app
-# It will use the node:12.18.3 image as the base image
+# It will use the node:16 image as the base image
 # It will copy the package.json and package-lock.json files to the /app directory
 # It will run the npm install command to install the dependencies
 # It will copy the rest of the files to the /app directory
 # It will run the npm run build command to build the react app
-# It will use the nginx:1.19.0 image as the base image
+# It will use the nginx:alpine image as the base image
 # It will copy the build directory from the /app directory to the /usr/share/nginx/html directory
 # It will expose port 80
 # It will run the nginx command to start the nginx server
@@ -20,13 +20,18 @@ WORKDIR /app
 # Copy the shared folder first
 COPY shared/ ./shared/
 
+# Build shared package first (required by rclient)
+WORKDIR /app/shared
+COPY shared/package.json shared/tsconfig.json ./
+RUN npm run build || tsc
+
 # Set working directory for rclient
 WORKDIR /app/rclient
 
 # Copy the package.json and package-lock.json files
 COPY rclient/package.json rclient/package-lock.json ./
 
-# Install the dependencies
+# Install the dependencies (will use ../shared)
 RUN npm install
 
 # Copy the rest of the rclient files
@@ -60,8 +65,5 @@ COPY rclient/nginx.conf /etc/nginx/conf.d/default.conf
 # Expose port 80
 EXPOSE 80
 
-
 # Start the nginx server
 CMD ["nginx", "-g", "daemon off;"]
-
-

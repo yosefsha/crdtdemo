@@ -5,8 +5,7 @@ import React, {
   useImperativeHandle,
 } from "react";
 import css from "../styles/Canvas.module.css";
-import { PixelDataCRDT, PixelDelta } from "../crdt/PixelDataCRDT";
-import { RGB } from "../crdt/CRDTTypes";
+import { PixelDataCRDT, RGB, CollectionDelta } from "@crdtdemo/shared";
 interface CanvasEditorProps {
   width: number;
   height: number;
@@ -29,7 +28,7 @@ const CanvasEditor = forwardRef(function CanvasEditor(
   }: CanvasEditorProps,
   ref
 ) {
-  const deltasRef = useRef<PixelDelta[]>([]);
+  const deltasRef = useRef<CollectionDelta<RGB>[]>([]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);

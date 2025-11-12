@@ -2,11 +2,7 @@ import React, { useMemo, useRef } from "react";
 import { getTimestamp } from "../helpers";
 import AuthPage from "./AuthPage";
 import CanvasEditor, { toBase64Image } from "./CanvasEditor";
-import {
-  MergeResult,
-  PixelDataCRDT,
-  PixelDeltaPacket,
-} from "../crdt/PixelDataCRDT";
+import { MergeResult, PixelDataCRDT, PixelDeltaPacket } from "@crdtdemo/shared";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import { useUserAuthContext } from "./UserAuthContext";

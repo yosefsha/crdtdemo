@@ -1,10 +1,15 @@
 {
   "name": "@crdtdemo/shared",
   "version": "1.0.0",
-  "description": "Shared CRDT types and implementations (source only)",
-  "main": "index.ts",
-  "types": "index.ts",
+  "description": "Shared CRDT types and implementations",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
     "test": "echo \"No tests yet\""
   },
   "keywords": [

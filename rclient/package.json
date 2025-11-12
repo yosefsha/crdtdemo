@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@crdtdemo/shared": "file:../shared",
     "@reduxjs/toolkit": "^2.5.0",
     "@types/enzyme": "^3.10.18",
     "@types/react-redux": "^7.1.34",
