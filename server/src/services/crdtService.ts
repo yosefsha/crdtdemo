@@ -1,10 +1,4 @@
-import {
-  MergeResult,
-  PixelDataCRDT,
-  PixelDeltaPacket,
-} from "../crdt/PixelDataCRDT";
-// TODO: Move PixelDataCRDT to a shared directory/package (e.g., ../../shared/crdt/PixelDataCRDT)
-// and import from there in both client and server for a single source of truth.
+import { MergeResult, PixelDataCRDT, PixelDeltaPacket } from "@crdtdemo/shared";
 import { getTimestamp } from "./helpers";
 import { userCrdtDb, upsertUserCrdtDocument } from "./userCrdtDb";
 

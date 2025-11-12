@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 // Update the import path if needed, or create the middleware/auth.ts file with verifyJWT exported
 import { verifyJWT } from "../routes/verifyJWT";
 import { crdtService } from "../services/crdtService";
-import { PixelDeltaPacket } from "../crdt/PixelDataCRDT";
+import { PixelDeltaPacket } from "@crdtdemo/shared";
 import { getCurrentTime } from "../services/helpers";
 
 const router = Router();

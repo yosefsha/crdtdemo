@@ -1,5 +1,5 @@
 import e from "express";
-import { PixelDataCRDT, PixelDeltaPacket } from "../crdt/PixelDataCRDT";
+import { PixelDataCRDT, PixelDeltaPacket } from "@crdtdemo/shared";
 
 describe("PixelDataCRDT - Multi-Agent, Multi-Replica Sync", () => {
   const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));

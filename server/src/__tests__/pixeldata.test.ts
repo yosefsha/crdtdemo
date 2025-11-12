@@ -1,5 +1,5 @@
-import { PixelDataCRDT, MergeResult } from "../crdt/PixelDataCRDT";
-import { RGB } from "../crdt/CRDTTypes";
+import { PixelDataCRDT, MergeResult, RGB } from "@crdtdemo/shared";
+
 describe("PixelDataCRDT", () => {
   it("1. should return both applied and missing deltas in bidirectional merge", async () => {
     // Given: two clients with independent PixelDataCRDTs
