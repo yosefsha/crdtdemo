@@ -315,6 +315,61 @@ export class Document<T = any> {
   }
 
   /**
+   * Acknowledge that we sent deltas to a replica and they confirmed receipt
+   * This updates our tracking of what the replica has seen
+   * Call this after receiving merge result from the replica
+   */
+  acknowledgeReplicaMerge(
+    replicaId: ReplicaId,
+    mergeResult: DocumentMergeResult<T>
+  ): void {
+    // Update tracking for all applied deltas - the replica now has these
+    mergeResult.applied.forEach((deltas, collectionId) => {
+      if (!this.replicaTimestamps.has(replicaId)) {
+        this.replicaTimestamps.set(replicaId, new Map());
+      }
+      const replicaCollections = this.replicaTimestamps.get(replicaId)!;
+      if (!replicaCollections.has(collectionId)) {
+        replicaCollections.set(collectionId, new Map());
+      }
+      const replicaItems = replicaCollections.get(collectionId)!;
+
+      deltas.forEach((delta) => {
+        const currentTimestamp = replicaItems.get(delta.itemId);
+        if (
+          currentTimestamp === undefined ||
+          delta.timestamp > currentTimestamp
+        ) {
+          replicaItems.set(delta.itemId, delta.timestamp);
+        }
+      });
+    });
+
+    // Also update for missing deltas - the replica sent these in their original packet
+    // so they definitely have them (they're "missing" from our perspective, not theirs)
+    mergeResult.missing.forEach((deltas, collectionId) => {
+      if (!this.replicaTimestamps.has(replicaId)) {
+        this.replicaTimestamps.set(replicaId, new Map());
+      }
+      const replicaCollections = this.replicaTimestamps.get(replicaId)!;
+      if (!replicaCollections.has(collectionId)) {
+        replicaCollections.set(collectionId, new Map());
+      }
+      const replicaItems = replicaCollections.get(collectionId)!;
+
+      deltas.forEach((delta) => {
+        const currentTimestamp = replicaItems.get(delta.itemId);
+        if (
+          currentTimestamp === undefined ||
+          delta.timestamp > currentTimestamp
+        ) {
+          replicaItems.set(delta.itemId, delta.timestamp);
+        }
+      });
+    });
+  }
+
+  /**
    * Get all deltas (entire document state)
    */
   getAllDeltas(): DocumentDeltaPacket<T> {

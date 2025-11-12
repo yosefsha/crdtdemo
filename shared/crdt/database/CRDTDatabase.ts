@@ -163,6 +163,21 @@ export class CRDTDatabase {
   }
 
   /**
+   * Acknowledge that deltas were sent to a replica and they confirmed receipt
+   * Call this after sending deltas and receiving the merge result back from a replica
+   */
+  acknowledgeReplicaMerge(
+    documentId: DocumentId,
+    replicaId: ReplicaId,
+    mergeResult: DocumentMergeResult
+  ): void {
+    const doc = this.documents.get(documentId);
+    if (doc) {
+      doc.acknowledgeReplicaMerge(replicaId, mergeResult);
+    }
+  }
+
+  /**
    * Get all deltas for a document
    */
   getAllDeltas(documentId: DocumentId): DocumentDeltaPacket | null {

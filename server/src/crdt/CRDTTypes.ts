@@ -36,19 +36,9 @@ export interface ICRDT<T, D extends IDelta<T>> {
   getDeltaSince(timestamp: number): { deltas: D[]; agentId: string };
 }
 ///////new
-export type RGB = [number, number, number];
 export type ReplicaId = string;
 export type AgentId = string;
 export type Key = string;
-
-export interface PixelDelta {
-  x: number;
-  y: number;
-  timestamp: number;
-  value: RGB | null;
-  replicaId: ReplicaId;
-  agentId: AgentId;
-}
 
 export class LWWRegister<T> {
   state: [replicaId: string, timestamp: number, value: T];
