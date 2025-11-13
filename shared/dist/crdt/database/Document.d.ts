@@ -7,7 +7,7 @@ export type CollectionId = string;
  */
 export interface DocumentDeltaPacket<T = any> {
     documentId: DocumentId;
-    collectionDeltas: Map<CollectionId, CollectionDelta<T>[]>;
+    collectionDeltas: Record<CollectionId, CollectionDelta<T>[]>;
     fromReplica: ReplicaId;
     fromAgent: AgentId;
 }
@@ -15,8 +15,8 @@ export interface DocumentDeltaPacket<T = any> {
  * Merge result indicating what was applied and what's missing
  */
 export interface DocumentMergeResult<T = any> {
-    applied: Map<CollectionId, CollectionDelta<T>[]>;
-    missing: Map<CollectionId, CollectionDelta<T>[]>;
+    applied: Record<CollectionId, CollectionDelta<T>[]>;
+    missing: Record<CollectionId, CollectionDelta<T>[]>;
 }
 /**
  * A document containing multiple named collections
@@ -86,6 +86,15 @@ export declare class Document<T = any> {
      */
     getAllDeltas(): DocumentDeltaPacket<T>;
     /**
+     * Serialize to JSON for database persistence
+     * Excludes replicaTimestamps as they are session-only state
+     */
+    toDBJSON(): {
+        documentId: DocumentId;
+        collections: Record<CollectionId, ReturnType<Collection<T>["toJSON"]>>;
+        agentTimestamps: Record<AgentId, Record<CollectionId, Record<ItemId, number>>>;
+    };
+    /**
      * Serialize to JSON
      */
     toJSON(): {
@@ -101,7 +110,7 @@ export declare class Document<T = any> {
         documentId: DocumentId;
         collections: Record<CollectionId, any>;
         agentTimestamps: Record<AgentId, Record<CollectionId, Record<ItemId, number>>>;
-        replicaTimestamps: Record<ReplicaId, Record<CollectionId, Record<ItemId, number>>>;
+        replicaTimestamps?: Record<ReplicaId, Record<CollectionId, Record<ItemId, number>>>;
     }): Document<T>;
 }
 //# sourceMappingURL=Document.d.ts.map

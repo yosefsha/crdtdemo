@@ -98,7 +98,9 @@ describe("CRDTDatabase Layer", () => {
       // Get deltas from dbA for agentB (what agentB doesn't have)
       const deltasForB = dbA.getDeltasForAgent("doc1", "agentB");
       expect(deltasForB).not.toBeNull();
-      expect(deltasForB?.collectionDeltas.size).toBeGreaterThan(0);
+      expect(
+        Object.keys(deltasForB?.collectionDeltas || {}).length
+      ).toBeGreaterThan(0);
 
       // Apply deltas to dbB
       if (deltasForB) {
@@ -109,7 +111,7 @@ describe("CRDTDatabase Layer", () => {
         dbA.acknowledgeMerge("doc1", "agentB", mergeResult);
 
         // Check that all deltas were applied
-        const pixelDeltas = mergeResult.applied.get("pixels");
+        const pixelDeltas = mergeResult.applied["pixels"];
         expect(pixelDeltas).toBeDefined();
         expect(pixelDeltas?.length).toBe(3);
       }
@@ -156,17 +158,23 @@ describe("CRDTDatabase Layer", () => {
 
       if (deltasAtoB) {
         const mergeResultB = dbB.mergeDocument(deltasAtoB);
-          dbA.acknowledgeMerge("doc1", "agentB", { applied: new Map(), missing: new Map() });
+        dbA.acknowledgeMerge("doc1", "agentB", {
+          applied: {},
+          missing: {},
+        });
         // dbA acknowledges that dbB received the deltas
         dbA.acknowledgeMerge("doc1", "agentB", mergeResultB);
-          dbA.acknowledgeMerge("doc1", "agentB", { applied: new Map(), missing: new Map() });
+        dbA.acknowledgeMerge("doc1", "agentB", {
+          applied: {},
+          missing: {},
+        });
         // dbA acknowledges that dbB received the deltas
         dbA.acknowledgeMerge("doc1", "agentB", mergeResultB);
-        const appliedToB = mergeResultB.applied.get("pixels");
+        const appliedToB = mergeResultB.applied["pixels"];
         expect(appliedToB?.length).toBe(2); // 2 red pixels applied to B
 
         // Check missing deltas (what A doesn't have from B)
-        const missingAtA = mergeResultB.missing.get("pixels");
+        const missingAtA = mergeResultB.missing["pixels"];
         expect(missingAtA?.length).toBe(2); // 2 blue pixels that A is missing
       }
 
@@ -176,13 +184,19 @@ describe("CRDTDatabase Layer", () => {
 
       if (deltasBtoA) {
         const mergeResultA = dbA.mergeDocument(deltasBtoA);
-          dbB.acknowledgeMerge("doc1", "agentA", { applied: new Map(), missing: new Map() });
+        dbB.acknowledgeMerge("doc1", "agentA", {
+          applied: {},
+          missing: {},
+        });
         // dbB acknowledges that dbA received the deltas
         dbB.acknowledgeMerge("doc1", "agentA", mergeResultA);
-          dbB.acknowledgeMerge("doc1", "agentA", { applied: new Map(), missing: new Map() });
+        dbB.acknowledgeMerge("doc1", "agentA", {
+          applied: {},
+          missing: {},
+        });
         // dbB acknowledges that dbA received the deltas
         dbB.acknowledgeMerge("doc1", "agentA", mergeResultA);
-        const appliedToA = mergeResultA.applied.get("pixels");
+        const appliedToA = mergeResultA.applied["pixels"];
         expect(appliedToA?.length).toBe(2); // 2 blue pixels applied to A
       }
 
@@ -259,16 +273,28 @@ describe("CRDTDatabase Layer", () => {
         const deltasAtoB = dbA.getDeltasForAgent("doc1", "agentB");
         if (deltasAtoB) {
           dbB.mergeDocument(deltasAtoB);
-          dbA.acknowledgeMerge("doc1", "agentB", { applied: new Map(), missing: new Map() });
-          dbA.acknowledgeMerge("doc1", "agentB", { applied: new Map(), missing: new Map() });
+          dbA.acknowledgeMerge("doc1", "agentB", {
+            applied: {},
+            missing: {},
+          });
+          dbA.acknowledgeMerge("doc1", "agentB", {
+            applied: {},
+            missing: {},
+          });
         }
 
         // Sync B → A
         const deltasBtoA = dbB.getDeltasForAgent("doc1", "agentA");
         if (deltasBtoA) {
           dbA.mergeDocument(deltasBtoA);
-          dbB.acknowledgeMerge("doc1", "agentA", { applied: new Map(), missing: new Map() });
-          dbB.acknowledgeMerge("doc1", "agentA", { applied: new Map(), missing: new Map() });
+          dbB.acknowledgeMerge("doc1", "agentA", {
+            applied: {},
+            missing: {},
+          });
+          dbB.acknowledgeMerge("doc1", "agentA", {
+            applied: {},
+            missing: {},
+          });
         }
 
         // Last write wins - should be "light" (written later)

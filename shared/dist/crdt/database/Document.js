@@ -93,16 +93,16 @@ class Document {
      * Get deltas for an agent (inter-agent sync)
      */
     getDeltasForAgent(agentId) {
-        const collectionDeltas = new Map();
+        const collectionDeltas = {};
         const agentCollections = this.agentTimestamps.get(agentId) || new Map();
         this.collections.forEach((collection, collectionId) => {
             const agentItems = agentCollections.get(collectionId) || new Map();
             const deltas = collection.getDeltasSince(agentItems);
             if (deltas.length > 0) {
-                collectionDeltas.set(collectionId, deltas);
+                collectionDeltas[collectionId] = deltas;
             }
         });
-        if (collectionDeltas.size === 0) {
+        if (Object.keys(collectionDeltas).length === 0) {
             return null;
         }
         return {
@@ -116,16 +116,29 @@ class Document {
      * Get deltas for a replica (intra-agent sync)
      */
     getDeltasForReplica(replicaId) {
-        const collectionDeltas = new Map();
-        const replicaCollections = this.replicaTimestamps.get(replicaId) || new Map();
-        this.collections.forEach((collection, collectionId) => {
-            const replicaItems = replicaCollections.get(collectionId) || new Map();
-            const deltas = collection.getDeltasSince(replicaItems);
-            if (deltas.length > 0) {
-                collectionDeltas.set(collectionId, deltas);
-            }
-        });
-        if (collectionDeltas.size === 0) {
+        const collectionDeltas = {};
+        const isNewReplica = !this.replicaTimestamps.has(replicaId);
+        // If this is a new replica and we have collections, return all deltas
+        if (isNewReplica && this.collections.size > 0) {
+            this.collections.forEach((collection, collectionId) => {
+                const deltas = collection.getAllDeltas();
+                if (deltas.length > 0) {
+                    collectionDeltas[collectionId] = deltas;
+                }
+            });
+        }
+        else {
+            // For existing replicas, return only incremental deltas
+            const replicaCollections = this.replicaTimestamps.get(replicaId) || new Map();
+            this.collections.forEach((collection, collectionId) => {
+                const replicaItems = replicaCollections.get(collectionId) || new Map();
+                const deltas = collection.getDeltasSince(replicaItems);
+                if (deltas.length > 0) {
+                    collectionDeltas[collectionId] = deltas;
+                }
+            });
+        }
+        if (Object.keys(collectionDeltas).length === 0) {
             return null;
         }
         return {
@@ -139,19 +152,17 @@ class Document {
      * Merge a delta packet into this document
      */
     merge(packet) {
-        const applied = new Map();
-        const missing = new Map();
-        packet.collectionDeltas.forEach((deltas, collectionId) => {
+        const applied = {};
+        const missing = {};
+        Object.entries(packet.collectionDeltas).forEach(([collectionId, deltas]) => {
             const collection = this.getCollection(collectionId);
             const appliedDeltas = collection.applyDeltas(deltas);
             if (appliedDeltas.length > 0) {
-                if (appliedDeltas.length > 0) {
-                    applied.set(collectionId, appliedDeltas);
-                    // Update vector clocks for applied deltas
-                    appliedDeltas.forEach((delta) => {
-                        this.updateVectorClock(collectionId, delta.itemId, delta.timestamp, delta.agentId, delta.replicaId);
-                    });
-                }
+                applied[collectionId] = appliedDeltas;
+                // Update vector clocks for applied deltas
+                appliedDeltas.forEach((delta) => {
+                    this.updateVectorClock(collectionId, delta.itemId, delta.timestamp, delta.agentId, delta.replicaId);
+                });
             }
         });
         // Calculate missing deltas (what the sender doesn't have)
@@ -161,7 +172,7 @@ class Document {
             const senderItems = senderCollections.get(collectionId) || new Map();
             const missingDeltas = collection.getDeltasSince(senderItems);
             if (missingDeltas.length > 0) {
-                missing.set(collectionId, missingDeltas);
+                missing[collectionId] = missingDeltas;
             }
         });
         return { applied, missing };
@@ -173,7 +184,7 @@ class Document {
      */
     acknowledgeMerge(agentId, mergeResult) {
         // Update tracking for all applied deltas - the agent now has these
-        mergeResult.applied.forEach((deltas, collectionId) => {
+        Object.entries(mergeResult.applied).forEach(([collectionId, deltas]) => {
             if (!this.agentTimestamps.has(agentId)) {
                 this.agentTimestamps.set(agentId, new Map());
             }
@@ -192,7 +203,7 @@ class Document {
         });
         // Also update for missing deltas - the agent sent these in their original packet
         // so they definitely have them (they're "missing" from our perspective, not theirs)
-        mergeResult.missing.forEach((deltas, collectionId) => {
+        Object.entries(mergeResult.missing).forEach(([collectionId, deltas]) => {
             if (!this.agentTimestamps.has(agentId)) {
                 this.agentTimestamps.set(agentId, new Map());
             }
@@ -217,7 +228,7 @@ class Document {
      */
     acknowledgeReplicaMerge(replicaId, mergeResult) {
         // Update tracking for all applied deltas - the replica now has these
-        mergeResult.applied.forEach((deltas, collectionId) => {
+        Object.entries(mergeResult.applied).forEach(([collectionId, deltas]) => {
             if (!this.replicaTimestamps.has(replicaId)) {
                 this.replicaTimestamps.set(replicaId, new Map());
             }
@@ -236,7 +247,7 @@ class Document {
         });
         // Also update for missing deltas - the replica sent these in their original packet
         // so they definitely have them (they're "missing" from our perspective, not theirs)
-        mergeResult.missing.forEach((deltas, collectionId) => {
+        Object.entries(mergeResult.missing).forEach(([collectionId, deltas]) => {
             if (!this.replicaTimestamps.has(replicaId)) {
                 this.replicaTimestamps.set(replicaId, new Map());
             }
@@ -258,11 +269,11 @@ class Document {
      * Get all deltas (entire document state)
      */
     getAllDeltas() {
-        const collectionDeltas = new Map();
+        const collectionDeltas = {};
         this.collections.forEach((collection, collectionId) => {
             const deltas = collection.getAllDeltas();
             if (deltas.length > 0) {
-                collectionDeltas.set(collectionId, deltas);
+                collectionDeltas[collectionId] = deltas;
             }
         });
         return {
@@ -270,6 +281,32 @@ class Document {
             collectionDeltas,
             fromReplica: "",
             fromAgent: "",
+        };
+    }
+    /**
+     * Serialize to JSON for database persistence
+     * Excludes replicaTimestamps as they are session-only state
+     */
+    toDBJSON() {
+        const collectionsObj = {};
+        this.collections.forEach((collection, collectionId) => {
+            collectionsObj[collectionId] = collection.toJSON();
+        });
+        const agentTimestampsObj = {};
+        this.agentTimestamps.forEach((colMap, agentId) => {
+            agentTimestampsObj[agentId] = {};
+            colMap.forEach((itemMap, collectionId) => {
+                agentTimestampsObj[agentId][collectionId] = {};
+                itemMap.forEach((timestamp, itemId) => {
+                    agentTimestampsObj[agentId][collectionId][itemId] = timestamp;
+                });
+            });
+        });
+        return {
+            documentId: this.documentId,
+            collections: collectionsObj,
+            agentTimestamps: agentTimestampsObj,
+            // NOTE: replicaTimestamps intentionally excluded - they are session-only state
         };
     }
     /**
@@ -322,14 +359,16 @@ class Document {
             });
             doc.agentTimestamps.set(agentId, agentMap);
         });
-        // Deserialize replica timestamps
-        Object.entries(json.replicaTimestamps).forEach(([replicaId, collections]) => {
-            const replicaMap = new Map();
-            Object.entries(collections).forEach(([collectionId, items]) => {
-                replicaMap.set(collectionId, new Map(Object.entries(items)));
+        // Deserialize replica timestamps (optional - may not be present in DB data)
+        if (json.replicaTimestamps) {
+            Object.entries(json.replicaTimestamps).forEach(([replicaId, collections]) => {
+                const replicaMap = new Map();
+                Object.entries(collections).forEach(([collectionId, items]) => {
+                    replicaMap.set(collectionId, new Map(Object.entries(items)));
+                });
+                doc.replicaTimestamps.set(replicaId, replicaMap);
             });
-            doc.replicaTimestamps.set(replicaId, replicaMap);
-        });
+        }
         return doc;
     }
 }

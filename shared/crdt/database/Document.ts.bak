@@ -404,48 +404,6 @@ export class Document<T = any> {
   }
 
   /**
-   * Serialize to JSON for database persistence
-   * Excludes replicaTimestamps as they are session-only state
-   */
-  toDBJSON(): {
-    documentId: DocumentId;
-    collections: Record<CollectionId, ReturnType<Collection<T>["toJSON"]>>;
-    agentTimestamps: Record<
-      AgentId,
-      Record<CollectionId, Record<ItemId, number>>
-    >;
-  } {
-    const collectionsObj: Record<
-      CollectionId,
-      ReturnType<Collection<T>["toJSON"]>
-    > = {};
-    this.collections.forEach((collection, collectionId) => {
-      collectionsObj[collectionId] = collection.toJSON();
-    });
-
-    const agentTimestampsObj: Record<
-      AgentId,
-      Record<CollectionId, Record<ItemId, number>>
-    > = {};
-    this.agentTimestamps.forEach((colMap, agentId) => {
-      agentTimestampsObj[agentId] = {};
-      colMap.forEach((itemMap, collectionId) => {
-        agentTimestampsObj[agentId][collectionId] = {};
-        itemMap.forEach((timestamp, itemId) => {
-          agentTimestampsObj[agentId][collectionId][itemId] = timestamp;
-        });
-      });
-    });
-
-    return {
-      documentId: this.documentId,
-      collections: collectionsObj,
-      agentTimestamps: agentTimestampsObj,
-      // NOTE: replicaTimestamps intentionally excluded - they are session-only state
-    };
-  }
-
-  /**
    * Serialize to JSON
    */
   toJSON(): {
@@ -511,7 +469,7 @@ export class Document<T = any> {
       AgentId,
       Record<CollectionId, Record<ItemId, number>>
     >;
-    replicaTimestamps?: Record<
+    replicaTimestamps: Record<
       ReplicaId,
       Record<CollectionId, Record<ItemId, number>>
     >;
@@ -538,21 +496,19 @@ export class Document<T = any> {
       doc.agentTimestamps.set(agentId, agentMap);
     });
 
-    // Deserialize replica timestamps (optional - may not be present in DB data)
-    if (json.replicaTimestamps) {
-      Object.entries(json.replicaTimestamps).forEach(
-        ([replicaId, collections]) => {
-          const replicaMap = new Map<CollectionId, Map<ItemId, number>>();
-          Object.entries(collections).forEach(([collectionId, items]) => {
-            replicaMap.set(
-              collectionId,
-              new Map(Object.entries(items as Record<ItemId, number>))
-            );
-          });
-          doc.replicaTimestamps.set(replicaId, replicaMap);
-        }
-      );
-    }
+    // Deserialize replica timestamps
+    Object.entries(json.replicaTimestamps).forEach(
+      ([replicaId, collections]) => {
+        const replicaMap = new Map<CollectionId, Map<ItemId, number>>();
+        Object.entries(collections).forEach(([collectionId, items]) => {
+          replicaMap.set(
+            collectionId,
+            new Map(Object.entries(items as Record<ItemId, number>))
+          );
+        });
+        doc.replicaTimestamps.set(replicaId, replicaMap);
+      }
+    );
 
     return doc;
   }

@@ -1,4 +1,9 @@
-import { MergeResult, PixelDataCRDT, PixelDeltaPacket } from "@crdtdemo/shared";
+import {
+  Document,
+  DocumentDeltaPacket,
+  DocumentMergeResult,
+  RGB,
+} from "@crdtdemo/shared";
 import { getTimestamp } from "./helpers";
 import { userCrdtDb, upsertUserCrdtDocument } from "./userCrdtDb";
 
@@ -8,7 +13,7 @@ class CRDTService {
    * Use CRDTService.getInstance() to access the singleton instance.
    */
   private static instance: CRDTService;
-  private userPixelData: Record<string, PixelDataCRDT> = {};
+  private userDocuments: Record<string, Document<RGB>> = {};
   constructor() {
     // Private constructor to enforce singleton pattern
     console.debug(
@@ -29,48 +34,30 @@ class CRDTService {
    * Merge another user's CRDT into the current user's CRDT and persist the result.
    * @param userId The current user's ID
    * @param otherAgentId The other user's ID
-   * @returns The merged MergeResult containing the deltas from the merge
+   * @returns The merged DocumentDeltaPacket containing the deltas from the merge
    */
   async mergeOtherUserCRDTs(
     userId: string,
     otherAgentId: string
-  ): Promise<PixelDeltaPacket | null> {
+  ): Promise<DocumentDeltaPacket<RGB> | null> {
     console.debug(
-      `[${getTimestamp()}] [DEBUG][mergeOtherUserCRDTs] Step 1: Get or create userPixelData for userId:`,
+      `[${getTimestamp()}] [DEBUG][mergeOtherUserCRDTs] Step 1: Get or create userDocument for userId:`,
       userId
     );
-    const userPixelData = await this.getOrCreateUserPixelData(userId);
+    const userDocument = await this.getOrCreateUserDocument(userId);
     console.debug(
-      `[${getTimestamp()}] [DEBUG][mergeOtherUserCRDTs] Step 2: userPixelData after creation:`,
-      userPixelData
+      `[${getTimestamp()}] [DEBUG][mergeOtherUserCRDTs] Step 2: userDocument after creation:`,
+      userDocument
     );
     // Load the other user's CRDT data
-    const otherUserPixelData = await this.getOrCreateUserPixelData(
-      otherAgentId
-    );
+    const otherUserDocument = await this.getOrCreateUserDocument(otherAgentId);
     console.debug(
-      `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 2: otherUserPixelData after creation:`,
-      otherUserPixelData
+      `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 2: otherUserDocument after creation:`,
+      otherUserDocument
     );
 
-    const otherDeltasPacket = otherUserPixelData.getDeltaForAgent(userId);
+    const otherDeltasPacket = otherUserDocument.getDeltasForAgent(userId);
 
-    const mergeResult = userPixelData.merge(otherDeltasPacket!);
-    console.debug(
-      `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 4: Merging deltas from other user:`,
-      otherAgentId,
-      `Result:`,
-      mergeResult
-    );
-    otherUserPixelData.handleMergeAgentResult(
-      mergeResult,
-      userId // Handle the merge result for the current user
-    );
-
-    console.debug(
-      `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 3: otherUserPixelData.getDeltaForAgent() result:`,
-      otherDeltasPacket
-    );
     if (!otherDeltasPacket) {
       console.warn(
         `[${getTimestamp()}] [WARN][mergeUserCRDTs] No deltas found for other user:`,
@@ -78,10 +65,21 @@ class CRDTService {
       );
       return null; // No deltas to merge
     }
+
+    const mergeResult = userDocument.merge(otherDeltasPacket);
     console.debug(
       `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 4: Merging deltas from other user:`,
-      otherAgentId
+      otherAgentId,
+      `Result:`,
+      mergeResult
     );
+    otherUserDocument.acknowledgeMerge(userId, mergeResult);
+
+    console.debug(
+      `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 3: otherUserDocument.getDeltasForAgent() result:`,
+      otherDeltasPacket
+    );
+
     console.debug(
       `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 5: merge result:`,
       mergeResult
@@ -91,7 +89,7 @@ class CRDTService {
       _id: userId,
       userId,
       timestamp: new Date(),
-      crdt: userPixelData.toJSON(),
+      crdt: userDocument.toDBJSON(),
     };
     console.debug(
       `[${getTimestamp()}] [DEBUG][mergeUserCRDTs] Step 6: Document to save:`,
@@ -106,42 +104,45 @@ class CRDTService {
     return otherDeltasPacket;
   }
   /**
-   * Get or create a PixelDataCRDT instance for a specific user.
-   * If it doesn't exist, create a new one with the userId and a server replicaId.
+   * Get or create a Document instance for a specific user.
+   * If it doesn't exist, create a new one with the userId.
    * @param userId The user's ID
-   * @returns The PixelDataCRDT instance for the user
+   * @returns The Document instance for the user
    */
-  async getOrCreateUserPixelData(userId: string): Promise<PixelDataCRDT> {
-    // Check if the userPixelData already exists in memory
-    let res: PixelDataCRDT | null = this.userPixelData[userId];
+  async getOrCreateUserDocument(userId: string): Promise<Document<RGB>> {
+    // Check if the userDocument already exists in memory
+    let res: Document<RGB> | null = this.userDocuments[userId];
     if (res) {
       console.debug(
-        `[${getTimestamp()}] [DEBUG][CRDTService] Found existing userPixelData in memory for userId:`,
+        `[${getTimestamp()}] [DEBUG][CRDTService] Found existing userDocument in memory for userId:`,
         userId
       );
       return res; // Return existing instance
     }
 
-    res = await this.getUserPixelDataFromDb(userId);
+    res = await this.getUserDocumentFromDb(userId);
     if (!res) {
       console.debug(
-        `[${getTimestamp()}] [DEBUG][CRDTService] No existing userPixelData found in DB for userId:`,
+        `[${getTimestamp()}] [DEBUG][CRDTService] No existing userDocument found in DB for userId:`,
         userId
       );
-      // Create a new PixelDataCRDT instance for this user
+      // Create a new Document instance for this user
       console.debug(
-        `[${getTimestamp()}] [DEBUG][CRDTService] Creating new PixelDataCRDT instance for userId:`,
+        `[${getTimestamp()}] [DEBUG][CRDTService] Creating new Document instance for userId:`,
         userId
       );
-      res = new PixelDataCRDT(userId, `${userId}_server`);
-      this.userPixelData[userId] = res;
+      res = new Document<RGB>(userId);
+      this.userDocuments[userId] = res;
     }
     return res;
   }
 
-  async syncUserDeltas(userId: string, deltas: PixelDeltaPacket) {
-    const userPixelData = await this.getOrCreateUserPixelData(userId);
-    const merged = userPixelData.merge(deltas);
+  async syncUserDeltas(
+    userId: string,
+    deltas: DocumentDeltaPacket<RGB>
+  ): Promise<DocumentMergeResult<RGB>> {
+    const userDocument = await this.getOrCreateUserDocument(userId);
+    const merged = userDocument.merge(deltas);
     // Save to MongoDB after merge (upsert by userId)
     try {
       await upsertUserCrdtDocument(
@@ -150,7 +151,7 @@ class CRDTService {
           _id: userId,
           userId,
           timestamp: new Date(),
-          crdt: userPixelData.toJSON(), // Store as JSON
+          crdt: userDocument.toDBJSON(), // Store as JSON
         }
       );
     } catch (err) {
@@ -166,11 +167,11 @@ class CRDTService {
   async syncReplicaDeltas(
     userId: string,
     replicaId: string,
-    deltas: PixelDeltaPacket
-  ) {
-    const userPixelData = await this.getOrCreateUserPixelData(userId);
+    deltas: DocumentDeltaPacket<RGB>
+  ): Promise<DocumentMergeResult<RGB>> {
+    const userDocument = await this.getOrCreateUserDocument(userId);
 
-    const mergeResult = userPixelData.merge(deltas);
+    const mergeResult = userDocument.merge(deltas);
     // Save to MongoDB after merge (upsert by userId)
     try {
       await upsertUserCrdtDocument(
@@ -179,7 +180,7 @@ class CRDTService {
           _id: userId,
           userId,
           timestamp: new Date(),
-          crdt: userPixelData.toJSON(), // Store as JSON
+          crdt: userDocument.toDBJSON(), // Store as JSON
         }
       );
     } catch (err) {
@@ -192,13 +193,15 @@ class CRDTService {
     return mergeResult;
   }
 
-  async getAllReplicaDeltas(userId: string): Promise<PixelDeltaPacket | null> {
-    await this.loadUserPixelData(userId);
+  async getAllReplicaDeltas(
+    userId: string
+  ): Promise<DocumentDeltaPacket<RGB> | null> {
+    await this.loadUserDocument(userId);
 
-    const userPixelData = await this.getOrCreateUserPixelData(userId);
-    if (!userPixelData) {
+    const userDocument = await this.getOrCreateUserDocument(userId);
+    if (!userDocument) {
       console.warn(
-        `[${getTimestamp()}] [WARN][CRDTService] getAllReplicaDeltas: No pixel data found for user:`,
+        `[${getTimestamp()}] [WARN][CRDTService] getAllReplicaDeltas: No document found for user:`,
         userId
       );
       return null; // No deltas to merge
@@ -209,7 +212,7 @@ class CRDTService {
       `[${getTimestamp()}] [INFO][CRDTService] getAllReplicaDeltas: Fetching deltas for userId:`,
       userId
     );
-    const deltas = userPixelData.getDeltaForReplica(`${userId}_client`);
+    const deltas = userDocument.getDeltasForReplica(`${userId}_client`);
     if (!deltas) {
       console.warn(
         `[${getTimestamp()}] [WARN][CRDTService] getAllReplicaDeltas: No deltas found for user:`,
@@ -224,21 +227,21 @@ class CRDTService {
     return deltas;
   }
 
-  async getUserPixelDataFromDb(userId: string): Promise<PixelDataCRDT | null> {
+  async getUserDocumentFromDb(userId: string): Promise<Document<RGB> | null> {
     // Efficiently load the latest CRDT document for this user using upsertDocument's filter
     const doc = await userCrdtDb.upsertDocument({ _id: userId }, {}); // upsertDocument returns the doc, but we don't want to update, just fetch
     // If not found, upsertDocument will create an empty doc, so instead use a new method for find
     if (doc && doc.crdt) {
-      return PixelDataCRDT.fromJSON(doc.crdt);
+      return Document.fromJSON<RGB>(doc.crdt);
     }
     return null;
   }
 
-  async loadUserPixelData(userId: string): Promise<void> {
-    const crdt = await this.getUserPixelDataFromDb(userId);
+  async loadUserDocument(userId: string): Promise<void> {
+    const crdt = await this.getUserDocumentFromDb(userId);
     if (crdt) {
       // Replace in-memory CRDT for this user
-      this.userPixelData[userId] = crdt;
+      this.userDocuments[userId] = crdt;
     }
   }
 }

@@ -5,13 +5,13 @@ import React, {
   useImperativeHandle,
 } from "react";
 import css from "../styles/Canvas.module.css";
-import { PixelDataCRDT, RGB, CollectionDelta } from "@crdtdemo/shared";
+import { PixelDocument, RGB, CollectionDelta } from "@crdtdemo/shared";
 interface CanvasEditorProps {
   width: number;
   height: number;
   onStateChange: () => void;
   color: RGB | null;
-  pixelData: PixelDataCRDT;
+  pixelData: PixelDocument;
   sharedState: number;
   cursor: string;
 }
@@ -46,14 +46,14 @@ const CanvasEditor = forwardRef(function CanvasEditor(
     const canvas = canvasRef.current;
     if (!canvas) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - No canvas found in PointerDown.`
+        `[${getTimestamp()}] CanvasEditor - No canvas found in PointerDown.`
       );
       return;
     }
     canvas.setPointerCapture(e.pointerId);
     isDrawingRef.current = true;
     console.log(
-      `[${getTimestamp()}] CanvasEditor:${pixelData.id} - PointerDown event: did set pointer capture and isDrawing to true.`
+      `[${getTimestamp()}] CanvasEditor - PointerDown event: did set pointer capture and isDrawing to true.`
     );
   };
 
@@ -62,7 +62,7 @@ const CanvasEditor = forwardRef(function CanvasEditor(
     const canvas = canvasRef.current;
     if (!canvas) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - No canvas found in PointerMove.`
+        `[${getTimestamp()}] CanvasEditor - No canvas found in PointerMove.`
       );
       return;
     }
@@ -123,20 +123,20 @@ const CanvasEditor = forwardRef(function CanvasEditor(
     const canvas = canvasRef.current;
     if (!canvas) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - No canvas found in draw.`
+        `[${getTimestamp()}] CanvasEditor - No canvas found in draw.`
       );
       return;
     }
     const ctx = canvas.getContext("2d");
     if (!ctx) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - No 2D context found in draw.`
+        `[${getTimestamp()}] CanvasEditor - No 2D context found in draw.`
       );
       return;
     }
 
     // Update pixel data
-    const delta = pixelData.set(PixelDataCRDT.getKey(x, y), color);
+    const delta = pixelData.set(PixelDocument.getKey(x, y), color);
     if (!delta) return;
     deltasRef.current.push(delta);
     drawOnCanvas(x, y, color || [255, 255, 255], ctx);
@@ -163,7 +163,7 @@ const CanvasEditor = forwardRef(function CanvasEditor(
       buffer[3] = 255; // Alpha channel
       const imageData = new ImageData(buffer, 1, 1);
       console.debug(
-        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - draw color: [${color}] at (${x}, ${y})`
+        `[${getTimestamp()}] CanvasEditor - draw color: [${color}] at (${x}, ${y})`
       );
       // draw the pixel on the canvas
       ctx.putImageData(imageData, x, y);
@@ -174,7 +174,7 @@ const CanvasEditor = forwardRef(function CanvasEditor(
     isDrawingRef.current = false;
     lastPosRef.current = null;
     console.log(
-      `[${getTimestamp()}] CanvasEditor:${pixelData.id} - PointerUp event did set isDrawing to false and lastPos to null. deltasRef.current:`,
+      `[${getTimestamp()}] CanvasEditor - PointerUp event did set isDrawing to false and lastPos to null. deltasRef.current:`,
       deltasRef.current
     );
     onStateChange();
@@ -183,7 +183,7 @@ const CanvasEditor = forwardRef(function CanvasEditor(
 
   const drawCanvasFromData = (ctx: CanvasRenderingContext2D) => {
     console.log(
-      `[${getTimestamp()}] CanvasEditor:${pixelData.id} - drawCanvas: isDrawingRef.current: ${isDrawingRef.current}`
+      `[${getTimestamp()}] CanvasEditor - drawCanvas: isDrawingRef.current: ${isDrawingRef.current}`
     );
     const imgData = ctx.createImageData(width, height);
 
@@ -194,7 +194,7 @@ const CanvasEditor = forwardRef(function CanvasEditor(
 
     // Check if we have high-resolution data (enhanced image)
     const hasHighResData =
-      pixelData.get(PixelDataCRDT.getKey(width, height)) !== null;
+      pixelData.get(PixelDocument.getKey(width, height)) !== null;
     if (hasHighResData) {
       // Assume enhanced resolution is 512x512 (common SDXL output)
       crdtWidth = 512;
@@ -212,7 +212,7 @@ const CanvasEditor = forwardRef(function CanvasEditor(
         const crdtX = Math.floor((x / width) * crdtWidth);
         const crdtY = Math.floor((y / height) * crdtHeight);
 
-        const [r, g, b] = pixelData.get(PixelDataCRDT.getKey(crdtX, crdtY)) ?? [
+        const [r, g, b] = pixelData.get(PixelDocument.getKey(crdtX, crdtY)) ?? [
           255, 255, 255,
         ];
         imgData.data[index] = r;
@@ -226,12 +226,12 @@ const CanvasEditor = forwardRef(function CanvasEditor(
 
   useEffect(() => {
     console.log(
-      `[${getTimestamp()}] CanvasEditor:${pixelData.id} - useEffect: color: [${color}]`
+      `[${getTimestamp()}] CanvasEditor - useEffect: color: [${color}]`
     );
     const canvas = canvasRef.current;
     if (!canvas) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - No canvas found in useEffect.`
+        `[${getTimestamp()}] CanvasEditor - No canvas found in useEffect.`
       );
       return;
     }
@@ -239,7 +239,7 @@ const CanvasEditor = forwardRef(function CanvasEditor(
     const ctx = canvas.getContext("2d");
     if (!ctx) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - No 2D context found in useEffect.`
+        `[${getTimestamp()}] CanvasEditor - No 2D context found in useEffect.`
       );
       return;
     }
@@ -253,7 +253,7 @@ const CanvasEditor = forwardRef(function CanvasEditor(
 
     return () => {
       console.log(
-        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - Cleaning up event listeners.`
+        `[${getTimestamp()}] CanvasEditor - Cleaning up event listeners.`
       );
       canvas.removeEventListener("pointerdown", handlePointerDown);
       canvas.removeEventListener("pointermove", handlePointerMove);
@@ -265,20 +265,20 @@ const CanvasEditor = forwardRef(function CanvasEditor(
   // listen for changes in the shared state
   useEffect(() => {
     console.log(
-      `[${getTimestamp()}] CanvasEditor:${pixelData.id} - useEffect: sharedState: ${sharedState}`
+      `[${getTimestamp()}] CanvasEditor - useEffect: sharedState: ${sharedState}`
     );
     // pixelData.merge(sharedState);
     const canvas = canvasRef.current;
     if (!canvas) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - No canvas found in useEffect sharedState.`
+        `[${getTimestamp()}] CanvasEditor - No canvas found in useEffect sharedState.`
       );
       return;
     }
     const ctx = canvas.getContext("2d");
     if (!ctx) {
       console.error(
-        `[${getTimestamp()}] CanvasEditor:${pixelData.id} - No 2D context found in useEffect sharedState.`
+        `[${getTimestamp()}] CanvasEditor - No 2D context found in useEffect sharedState.`
       );
       return;
     }
@@ -297,7 +297,7 @@ const CanvasEditor = forwardRef(function CanvasEditor(
 
   // Expose fromBase64Image via ref
   useImperativeHandle(ref, () => ({
-    fromBase64Image: async (crdt: PixelDataCRDT, base64: string) => {
+    fromBase64Image: async (crdt: PixelDocument, base64: string) => {
       // Don't scale down - let fromBase64Image determine the appropriate size
       // or keep the enhanced image size
       await fromBase64Image(crdt, base64);
@@ -322,9 +322,9 @@ const CanvasEditor = forwardRef(function CanvasEditor(
   );
 });
 
-// Utility: Convert PixelDataCRDT to base64 image
+// Utility: Convert PixelDocument to base64 image
 export function toBase64Image(
-  pixelData: PixelDataCRDT,
+  pixelData: PixelDocument,
   targetWidth: number,
   targetHeight: number
 ): string {
@@ -342,7 +342,7 @@ export function toBase64Image(
   // If we're asked to create a larger image, check if we have high-res source data
   if (targetWidth > 200 || targetHeight > 200) {
     const hasHighResData =
-      pixelData.get(PixelDataCRDT.getKey(250, 250)) !== null;
+      pixelData.get(PixelDocument.getKey(250, 250)) !== null;
     if (hasHighResData) {
       sourceWidth = 512; // We have high-res data
       sourceHeight = 512;
@@ -364,7 +364,7 @@ export function toBase64Image(
       const sourceX = Math.floor((x / targetWidth) * sourceWidth);
       const sourceY = Math.floor((y / targetHeight) * sourceHeight);
 
-      const color = pixelData.get(PixelDataCRDT.getKey(sourceX, sourceY)) || [
+      const color = pixelData.get(PixelDocument.getKey(sourceX, sourceY)) || [
         255, 255, 255,
       ];
       imageData.data[i] = color[0];
@@ -377,13 +377,13 @@ export function toBase64Image(
   return canvas.toDataURL();
 }
 
-// Utility: Convert base64 image to PixelDataCRDT
+// Utility: Convert base64 image to PixelDocument
 async function fromBase64Image(
-  crdt: PixelDataCRDT,
+  crdt: PixelDocument,
   base64: string,
   targetWidth?: number,
   targetHeight?: number
-): Promise<PixelDataCRDT> {
+): Promise<PixelDocument> {
   console.log(`[fromBase64Image] Input: base64 length=${base64.length}`);
 
   const img = new Image();
@@ -424,7 +424,7 @@ async function fromBase64Image(
         imageData.data[i + 1],
         imageData.data[i + 2],
       ];
-      crdt.set(PixelDataCRDT.getKey(x, y), color);
+      crdt.set(PixelDocument.getKey(x, y), color);
     }
   }
 

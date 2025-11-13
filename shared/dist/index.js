@@ -16,4 +16,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
 Object.defineProperty(exports, "__esModule", { value: true });
 // Main entry point for shared CRDT library
 __exportStar(require("./crdt/database/CRDTDatabase"), exports);
-__exportStar(require("./crdt/PixelDataCRDT"), exports);
+__exportStar(require("./crdt/database/Document"), exports);
+__exportStar(require("./crdt/database/Collection"), exports);
+__exportStar(require("./crdt/types"), exports);
+__exportStar(require("./crdt/PixelDocument"), exports);
