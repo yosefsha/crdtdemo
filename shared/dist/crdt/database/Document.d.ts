@@ -62,6 +62,10 @@ export declare class Document<T = any> {
      */
     getDeltasForAgent(agentId: AgentId): DocumentDeltaPacket<T> | null;
     /**
+     * Get all items from all collections
+     */
+    getAllItems(): Record<CollectionId, Record<ItemId, T | null>>;
+    /**
      * Get deltas for a replica (intra-agent sync)
      */
     getDeltasForReplica(replicaId: ReplicaId): DocumentDeltaPacket<T> | null;

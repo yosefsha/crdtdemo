@@ -113,6 +113,16 @@ class Document {
         };
     }
     /**
+     * Get all items from all collections
+     */
+    getAllItems() {
+        const result = {};
+        this.collections.forEach((collection, collectionId) => {
+            result[collectionId] = Object.fromEntries(collection.getAllItems());
+        });
+        return result;
+    }
+    /**
      * Get deltas for a replica (intra-agent sync)
      */
     getDeltasForReplica(replicaId) {

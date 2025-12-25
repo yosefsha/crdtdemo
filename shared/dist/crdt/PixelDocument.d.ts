@@ -27,6 +27,10 @@ export declare class PixelDocument {
      */
     get(key: string): RGB | null;
     /**
+     * Get the number of pixels in the document
+     */
+    getSize(): number;
+    /**
      * Get deltas for an agent (inter-agent sync)
      * Returns null if no deltas are available
      */

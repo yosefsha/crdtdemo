@@ -65,6 +65,15 @@ export class PixelDocument {
   }
 
   /**
+   * Get the number of pixels in the document
+   */
+  getSize(): number {
+    const collection = this.document.getCollection(PIXEL_COLLECTION_ID);
+    const items = collection.getAllItems();
+    return items.size;
+  }
+
+  /**
    * Get deltas for an agent (inter-agent sync)
    * Returns null if no deltas are available
    */

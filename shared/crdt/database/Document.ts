@@ -173,16 +173,29 @@ export class Document<T = any> {
       }
     });
 
-    if (Object.keys(collectionDeltas).length === 0) {
-      return null;
+      if (Object.keys(collectionDeltas).length === 0) {
+        return null;
+      }
+  
+      return {
+        documentId: this.documentId,
+        collectionDeltas,
+        fromReplica: "", // Will be set by caller
+        fromAgent: "", // Will be set by caller
+      };
     }
-
-    return {
-      documentId: this.documentId,
-      collectionDeltas,
-      fromReplica: "", // Will be set by caller
-      fromAgent: "", // Will be set by caller
-    };
+  
+    /**
+     * Get all items from all collections
+     */
+    getAllItems(): Record<CollectionId, Record<ItemId, T | null>> {
+      const result: Record<CollectionId, Record<ItemId, T | null>> = {};
+      
+      this.collections.forEach((collection, collectionId: CollectionId) => {
+        result[collectionId] = Object.fromEntries(collection.getAllItems());
+      });
+      
+      return result;
   }
 
   /**
