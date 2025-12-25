@@ -436,6 +436,7 @@ async function fromBase64Image(
     }
   }
 
+  const crdtSizeAfter = Object.keys(crdt.values).length;
   console.log(
     `[fromBase64Image] Processed ${pixelsSet} non-transparent pixels`
   );
