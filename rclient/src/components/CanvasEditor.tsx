@@ -297,10 +297,16 @@ const CanvasEditor = forwardRef(function CanvasEditor(
 
   // Expose fromBase64Image via ref
   useImperativeHandle(ref, () => ({
+  useImperativeHandle(ref, () => ({
     fromBase64Image: async (crdt: PixelDocument, base64: string) => {
-      // Don't scale down - let fromBase64Image determine the appropriate size
-      // or keep the enhanced image size
-      await fromBase64Image(crdt, base64);
+      // Scale down to canvas size to prevent massive CRDT growth
+      // This is important because enriched images are often 512x512 but canvas might be 200x200
+      await fromBase64Image(crdt, base64, width, height);
+    fromBase64Image: async (crdt: PixelDataCRDT, base64: string) => {
+      // Scale down to canvas size to prevent massive CRDT growth
+      // This is important because enriched images are often 512x512 but canvas might be 200x200
+      await fromBase64Image(crdt, base64, width, height);
+>>>>>>> origin/main
       // Force redraw after loading image
       const canvas = canvasRef.current;
       if (canvas) {
@@ -383,8 +389,14 @@ async function fromBase64Image(
   base64: string,
   targetWidth?: number,
   targetHeight?: number
-): Promise<PixelDocument> {
-  console.log(`[fromBase64Image] Input: base64 length=${base64.length}`);
+  useImperativeHandle(ref, () => ({
+    fromBase64Image: async (crdt: PixelDocument, base64: string) => {
+      // Scale down to canvas size to prevent massive CRDT growth
+      // This is important because enriched images are often 512x512 but canvas might be 200x200
+      await fromBase64Image(crdt, base64, width, height);
+): Promise<PixelDataCRDT> {
+  console.log(`[fromBase64Image] Input: base64 length=${base64.length} (${(base64.length / 1024 / 1024).toFixed(2)} MB)`);
+>>>>>>> origin/main
 
   const img = new Image();
   img.src = base64;
@@ -396,6 +408,15 @@ async function fromBase64Image(
 
   console.log(
     `[fromBase64Image] Loaded image: ${img.width}x${img.height} → using ${finalWidth}x${finalHeight}`
+  );
+  console.log(
+    `[fromBase64Image] Will process ${finalWidth * finalHeight} pixels`
+  );
+
+  // Log current CRDT size before processing
+  const crdtSizeBefore = Object.keys(crdt.values).length;
+  console.log(
+    `[fromBase64Image] CRDT size before processing: ${crdtSizeBefore} pixels`
   );
 
   // Create a canvas to resize the image if needed
@@ -416,6 +437,7 @@ async function fromBase64Image(
   // Since there's no clear method, we'll just overwrite all pixels
 
   // Populate CRDT with image data
+  let pixelsSet = 0;
   for (let y = 0; y < finalHeight; y++) {
     for (let x = 0; x < finalWidth; x++) {
       const i = (y * finalWidth + x) * 4;
@@ -424,12 +446,27 @@ async function fromBase64Image(
         imageData.data[i + 1],
         imageData.data[i + 2],
       ];
-      crdt.set(PixelDocument.getKey(x, y), color);
+  useImperativeHandle(ref, () => ({
+    fromBase64Image: async (crdt: PixelDocument, base64: string) => {
+      // Scale down to canvas size to prevent massive CRDT growth
+      // This is important because enriched images are often 512x512 but canvas might be 200x200
+      await fromBase64Image(crdt, base64, width, height);
+      // Only set non-transparent pixels to avoid unnecessary growth
+      const alpha = imageData.data[i + 3];
+      if (alpha > 0) {
+        crdt.set(PixelDataCRDT.getKey(x, y), color);
+        pixelsSet++;
+      }
+>>>>>>> origin/main
     }
   }
 
+  const crdtSizeAfter = Object.keys(crdt.values).length;
   console.log(
-    `[fromBase64Image] Updated CRDT with ${finalWidth * finalHeight} pixels`
+    `[fromBase64Image] Processed ${pixelsSet} non-transparent pixels`
+  );
+  console.log(
+    `[fromBase64Image] CRDT size after processing: ${crdtSizeAfter} pixels (change: +${crdtSizeAfter - crdtSizeBefore})`
   );
   return crdt;
 }
