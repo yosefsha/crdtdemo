@@ -25,7 +25,9 @@ services:
       - "traefik.http.middlewares.server-body-limit.buffering.maxRequestBodyBytes=52428800"
       - "traefik.http.routers.server.middlewares=server-body-limit"
 
-    build: ./server
+    build:
+      context: .
+      dockerfile: ./server/Dockerfile
     networks:
       - app-network
     depends_on:
@@ -43,7 +45,8 @@ services:
       - "traefik.http.services.client.loadbalancer.server.port=80"
 
     build:
-      context: ./rclient
+      context: .
+      dockerfile: ./rclient/Dockerfile
       args:
         API_URL: /api
         MYENV: "docker"

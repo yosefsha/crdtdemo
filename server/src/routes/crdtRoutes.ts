@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 // Update the import path if needed, or create the middleware/auth.ts file with verifyJWT exported
 import { verifyJWT } from "../routes/verifyJWT";
 import { crdtService } from "../services/crdtService";
-import { PixelDeltaPacket } from "../crdt/PixelDataCRDT";
+import { DocumentDeltaPacket, RGB } from "@crdtdemo/shared";
 import { getCurrentTime } from "../services/helpers";
 
 const router = Router();
@@ -22,10 +22,17 @@ router.get("/sync", verifyJWT, async (req, res) => {
     // Load the user's CRDT data
     console.debug("Loading CRDT data for user:", userId);
     const packet = await crdtService.getAllReplicaDeltas(userId);
+
+    // Count total deltas across all collections
+    let totalDeltas = 0;
+    if (packet?.collectionDeltas) {
+      for (const deltas of Object.values(packet.collectionDeltas)) {
+        totalDeltas += deltas.length;
+      }
+    }
+
     console.info(
-      `[${getCurrentTime()}] Loaded CRDT deltas for user: ${userId}: ${
-        packet?.deltas?.length || 0
-      } deltas `
+      `[${getCurrentTime()}] Loaded CRDT deltas for user: ${userId}: ${totalDeltas} deltas `
     );
     // If no CRDT data found, return 404
     if (!packet) {
@@ -42,7 +49,7 @@ router.get("/sync", verifyJWT, async (req, res) => {
 
 router.post("/sync", verifyJWT, async (req, res) => {
   if (!req.body) {
-    res.status(422).send("You must provide a delta packet");
+    res.status(422).json({ error: "You must provide a delta packet" });
     return;
   }
   // Get userId from JWT (set by verifyJWT)
@@ -54,8 +61,8 @@ router.post("/sync", verifyJWT, async (req, res) => {
   }
   //parse the incoming state
   const { deltas } = req.body;
-  if (!(deltas as PixelDeltaPacket)) {
-    res.status(422).send(`[${getCurrentTime()}] You must provide a state`);
+  if (!(deltas as DocumentDeltaPacket<RGB>)) {
+    res.status(422).json({ error: "You must provide a state" });
     return;
   }
 
@@ -65,7 +72,7 @@ router.post("/sync", verifyJWT, async (req, res) => {
     const mergeResult = await crdtService.syncUserDeltas(`${userId}`, deltas);
     res.json({ data: mergeResult });
   } catch (error) {
-    res.status(400).send(`[${getCurrentTime()}] Error syncing state`);
+    res.status(400).json({ error: "Error syncing state" });
   }
 });
 

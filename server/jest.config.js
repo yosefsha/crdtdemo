@@ -7,6 +7,10 @@ module.exports = {
   },
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],
   testPathIgnorePatterns: ["/node_modules/", "/build/"], // Exclude the build directory
+  moduleNameMapper: {
+    "^@crdtdemo/shared$": "<rootDir>/../shared/index.ts",
+    "^@crdtdemo/shared/(.*)$": "<rootDir>/../shared/$1",
+  },
 };
 /*
 This tells Jest to use ts-jest as the preset.

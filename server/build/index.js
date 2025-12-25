@@ -29,9 +29,15 @@ app.use((0, cors_1.default)({
     credentials: true,
     optionsSuccessStatus: 204,
 }));
-// Use body-parser middleware
-app.use(body_parser_1.default.json());
-app.use(body_parser_1.default.urlencoded({ extended: true }));
+// Health endpoint for CI/CD checks
+app.get("/api/health", (_req, res) => {
+    res
+        .status(200)
+        .json({ status: "ok", service: "server", ts: new Date().toISOString() });
+});
+// Use body-parser middleware with increased size limits
+app.use(body_parser_1.default.json({ limit: "10mb" }));
+app.use(body_parser_1.default.urlencoded({ limit: "10mb", extended: true }));
 // Use cookie-session middleware
 app.use((0, cookie_session_1.default)({
     keys: ["asdf"],
@@ -51,6 +57,9 @@ app.get("/health", (req, res) => {
 // Socket.IO server setup
 const socket_1 = require("./services/socket");
 (0, socket_1.setupSocket)(server);
+// Start RabbitMQ consumer for enrichment responses
+const consumeRabit_1 = require("./services/consumeRabit");
+(0, consumeRabit_1.startEnrichmentConsumer)();
 // Start the server on the configured port
 server.listen(port, () => {
     console.log(`Server is listening on ${port}!`);

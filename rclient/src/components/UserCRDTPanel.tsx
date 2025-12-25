@@ -2,11 +2,7 @@ import React, { useMemo, useRef } from "react";
 import { getTimestamp } from "../helpers";
 import AuthPage from "./AuthPage";
 import CanvasEditor, { toBase64Image } from "./CanvasEditor";
-import {
-  MergeResult,
-  PixelDataCRDT,
-  PixelDeltaPacket,
-} from "../crdt/PixelDataCRDT";
+import { MergeResult, PixelDocument, PixelDeltaPacket } from "@crdtdemo/shared";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import { useUserAuthContext } from "./UserAuthContext";
@@ -15,6 +11,8 @@ import SyncOptions from "./SyncOptions";
 import { SyncOption } from "./SyncOptions";
 import type { AppUser } from "../types/app";
 import { io, Socket } from "socket.io-client";
+// TEST: Import from shared to verify compilation
+import { CRDTDatabase } from "@crdtdemo/shared";
 
 // Canvas and CRDT dimension constants
 const CANVAS_WIDTH = 200;
@@ -55,11 +53,14 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     () => `${userId}_server`, // Use userId for server replica
     [userId]
   );
-  let pixelData = useMemo(() => new PixelDataCRDT(userId, replicaId), [token]);
+  const pixelData = useMemo(
+    () => new PixelDocument(userId, replicaId),
+    [userId, replicaId]
+  );
 
   const socket = useRef<WebSocket | null>(null);
   const canvasEditorRef = useRef<{
-    fromBase64Image: (crdt: PixelDataCRDT, base64: string) => void;
+    fromBase64Image: (crdt: PixelDocument, base64: string) => void;
   } | null>(null);
 
   React.useEffect(() => {
