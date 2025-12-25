@@ -397,6 +397,15 @@ async function fromBase64Image(
   console.log(
     `[fromBase64Image] Loaded image: ${img.width}x${img.height} → using ${finalWidth}x${finalHeight}`
   );
+  console.log(
+    `[fromBase64Image] Will process ${finalWidth * finalHeight} pixels`
+  );
+
+  // Log current CRDT size before processing
+  const crdtSizeBefore = Object.keys(crdt.values).length;
+  console.log(
+    `[fromBase64Image] CRDT size before processing: ${crdtSizeBefore} pixels`
+  );
 
   // Create a canvas to resize the image if needed
   const canvas = document.createElement("canvas");
@@ -416,6 +425,7 @@ async function fromBase64Image(
   // Since there's no clear method, we'll just overwrite all pixels
 
   // Populate CRDT with image data
+  let pixelsSet = 0;
   for (let y = 0; y < finalHeight; y++) {
     for (let x = 0; x < finalWidth; x++) {
       const i = (y * finalWidth + x) * 4;
@@ -428,8 +438,12 @@ async function fromBase64Image(
     }
   }
 
+  const crdtSizeAfter = Object.keys(crdt.values).length;
   console.log(
-    `[fromBase64Image] Updated CRDT with ${finalWidth * finalHeight} pixels`
+    `[fromBase64Image] Processed ${pixelsSet} non-transparent pixels`
+  );
+  console.log(
+    `[fromBase64Image] CRDT size after processing: ${crdtSizeAfter} pixels (change: +${crdtSizeAfter - crdtSizeBefore})`
   );
   return crdt;
 }

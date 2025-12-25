@@ -27,10 +27,10 @@ async function enrichImage(base64) {
         input: {
           image: base64,
           prompt:
-            "enhance this simple drawing by adding creative details like windows, doors, sun, clouds, trees, flowers, or other appropriate elements that would make the drawing more complete and interesting, keep the original drawing style, digital art",
-          strength: 0.2, // More subtle creative additions
-          guidance_scale: 8, // Higher guidance for better prompt following
-          num_inference_steps: 25,
+            "very slightly enhance this drawing by adding minimal details while preserving the original style and content, subtle improvement only",
+          strength: 0.1, // Even more subtle - barely modifies the image
+          guidance_scale: 10, // Lower guidance for more natural results
+          num_inference_steps: 3, // Few steps but better quality than 1
           width: 512,
           height: 512,
           disable_safety_checker: true,
