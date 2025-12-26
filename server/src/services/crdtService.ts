@@ -2,7 +2,7 @@ import {
   Document,
   DocumentDeltaPacket,
   DocumentMergeResult,
-  RGB,
+  RGBHEX,
 } from "@crdtdemo/shared";
 import { getTimestamp } from "./helpers";
 import { userCrdtDb, upsertUserCrdtDocument } from "./userCrdtDb";
@@ -13,7 +13,7 @@ class CRDTService {
    * Use CRDTService.getInstance() to access the singleton instance.
    */
   private static instance: CRDTService;
-  private userDocuments: Record<string, Document<RGB>> = {};
+  private userDocuments: Record<string, Document<RGBHEX>> = {};
   constructor() {
     // Private constructor to enforce singleton pattern
     console.debug(
@@ -39,7 +39,7 @@ class CRDTService {
   async mergeOtherUserCRDTs(
     userId: string,
     otherAgentId: string
-  ): Promise<DocumentDeltaPacket<RGB> | null> {
+  ): Promise<DocumentDeltaPacket<RGBHEX> | null> {
     console.debug(
       `[${getTimestamp()}] [DEBUG][mergeOtherUserCRDTs] Step 1: Get or create userDocument for userId:`,
       userId
@@ -109,9 +109,9 @@ class CRDTService {
    * @param userId The user's ID
    * @returns The Document instance for the user
    */
-  async getOrCreateUserDocument(userId: string): Promise<Document<RGB>> {
+  async getOrCreateUserDocument(userId: string): Promise<Document<RGBHEX>> {
     // Check if the userDocument already exists in memory
-    let res: Document<RGB> | null = this.userDocuments[userId];
+    let res: Document<RGBHEX> | null = this.userDocuments[userId];
     if (res) {
       console.debug(
         `[${getTimestamp()}] [DEBUG][CRDTService] Found existing userDocument in memory for userId:`,
@@ -131,7 +131,7 @@ class CRDTService {
         `[${getTimestamp()}] [DEBUG][CRDTService] Creating new Document instance for userId:`,
         userId
       );
-      res = new Document<RGB>(userId);
+      res = new Document<RGBHEX>(userId);
       this.userDocuments[userId] = res;
     }
     return res;
@@ -139,8 +139,8 @@ class CRDTService {
 
   async syncUserDeltas(
     userId: string,
-    deltas: DocumentDeltaPacket<RGB>
-  ): Promise<DocumentMergeResult<RGB>> {
+    deltas: DocumentDeltaPacket<RGBHEX>
+  ): Promise<DocumentMergeResult<RGBHEX>> {
     const userDocument = await this.getOrCreateUserDocument(userId);
     const merged = userDocument.merge(deltas);
     // Save to PostgreSQL after merge (upsert by userId)
@@ -167,8 +167,8 @@ class CRDTService {
   async syncReplicaDeltas(
     userId: string,
     replicaId: string,
-    deltas: DocumentDeltaPacket<RGB>
-  ): Promise<DocumentMergeResult<RGB>> {
+    deltas: DocumentDeltaPacket<RGBHEX>
+  ): Promise<DocumentMergeResult<RGBHEX>> {
     const userDocument = await this.getOrCreateUserDocument(userId);
 
     const mergeResult = userDocument.merge(deltas);
@@ -195,7 +195,7 @@ class CRDTService {
 
   async getAllReplicaDeltas(
     userId: string
-  ): Promise<DocumentDeltaPacket<RGB> | null> {
+  ): Promise<DocumentDeltaPacket<RGBHEX> | null> {
     await this.loadUserDocument(userId);
 
     const userDocument = await this.getOrCreateUserDocument(userId);
@@ -227,12 +227,14 @@ class CRDTService {
     return deltas;
   }
 
-  async getUserDocumentFromDb(userId: string): Promise<Document<RGB> | null> {
+  async getUserDocumentFromDb(
+    userId: string
+  ): Promise<Document<RGBHEX> | null> {
     // Efficiently load the latest CRDT document for this user using upsertDocument's filter
     const doc = await userCrdtDb.upsertDocument({ _id: userId }, {}); // upsertDocument returns the doc, but we don't want to update, just fetch
     // If not found, upsertDocument will create an empty doc, so instead use a new method for find
     if (doc && doc.crdt) {
-      return Document.fromJSON<RGB>(doc.crdt);
+      return Document.fromJSON<RGBHEX>(doc.crdt);
     }
     return null;
   }

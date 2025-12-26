@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 // Update the import path if needed, or create the middleware/auth.ts file with verifyJWT exported
 import { verifyJWT } from "../routes/verifyJWT";
 import { crdtService } from "../services/crdtService";
-import { DocumentDeltaPacket, RGB } from "@crdtdemo/shared";
+import { DocumentDeltaPacket, RGBHEX } from "@crdtdemo/shared";
 import { getCurrentTime } from "../services/helpers";
 
 const router = Router();
@@ -61,7 +61,7 @@ router.post("/sync", verifyJWT, async (req, res) => {
   }
   //parse the incoming state
   const { deltas } = req.body;
-  if (!(deltas as DocumentDeltaPacket<RGB>)) {
+  if (!(deltas as DocumentDeltaPacket<RGBHEX>)) {
     res.status(422).json({ error: "You must provide a state" });
     return;
   }

@@ -5,12 +5,18 @@ import React, {
   useImperativeHandle,
 } from "react";
 import css from "../styles/Canvas.module.css";
-import { PixelDocument, RGB, CollectionDelta } from "@crdtdemo/shared";
+import {
+  PixelDocument,
+  RGBHEX,
+  CollectionDelta,
+  hexToRgba,
+  rgbaToHex,
+} from "@crdtdemo/shared";
 interface CanvasEditorProps {
   width: number;
   height: number;
   onStateChange: () => void;
-  color: RGB | null;
+  color: RGBHEX | null;
   pixelData: PixelDocument;
   sharedState: number;
   cursor: string;
@@ -28,7 +34,7 @@ const CanvasEditor = forwardRef(function CanvasEditor(
   }: CanvasEditorProps,
   ref
 ) {
-  const deltasRef = useRef<CollectionDelta<RGB>[]>([]);
+  const deltasRef = useRef<CollectionDelta<RGBHEX>[]>([]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -139,13 +145,13 @@ const CanvasEditor = forwardRef(function CanvasEditor(
     const delta = pixelData.set(PixelDocument.getKey(x, y), color);
     if (!delta) return;
     deltasRef.current.push(delta);
-    drawOnCanvas(x, y, color || [255, 255, 255], ctx);
+    drawOnCanvas(x, y, color || "ffffffff", ctx);
   };
 
   async function drawOnCanvas(
     x: number,
     y: number,
-    color: RGB,
+    color: RGBHEX,
     ctx: CanvasRenderingContext2D
   ) {
     /** Number of channels per pixel; R, G, B, A */
@@ -157,13 +163,14 @@ const CanvasEditor = forwardRef(function CanvasEditor(
     const buffer = new Uint8ClampedArray(chans);
     // set the pixel color at position (x, y) on canvas to the color
     if (color) {
-      buffer[0] = color[0];
-      buffer[1] = color[1];
-      buffer[2] = color[2];
-      buffer[3] = 255; // Alpha channel
+      const rgba = hexToRgba(color);
+      buffer[0] = rgba.r;
+      buffer[1] = rgba.g;
+      buffer[2] = rgba.b;
+      buffer[3] = rgba.a;
       const imageData = new ImageData(buffer, 1, 1);
       console.debug(
-        `[${getTimestamp()}] CanvasEditor - draw color: [${color}] at (${x}, ${y})`
+        `[${getTimestamp()}] CanvasEditor - draw color: ${color} at (${x}, ${y})`
       );
       // draw the pixel on the canvas
       ctx.putImageData(imageData, x, y);
@@ -211,10 +218,10 @@ const CanvasEditor = forwardRef(function CanvasEditor(
         // Scale canvas coordinates to CRDT coordinates
         const crdtX = Math.floor((x / width) * crdtWidth);
         const crdtY = Math.floor((y / height) * crdtHeight);
-
-        const [r, g, b] = pixelData.get(PixelDocument.getKey(crdtX, crdtY)) ?? [
-          255, 255, 255,
-        ];
+        const hex =
+          pixelData.get(PixelDocument.getKey(crdtX, crdtY)) ??
+          ("ffffffff" as RGBHEX);
+        const { r, g, b, a } = hexToRgba(hex);
         imgData.data[index] = r;
         imgData.data[index + 1] = g;
         imgData.data[index + 2] = b;
@@ -364,13 +371,13 @@ export function toBase64Image(
       const sourceX = Math.floor((x / targetWidth) * sourceWidth);
       const sourceY = Math.floor((y / targetHeight) * sourceHeight);
 
-      const color = pixelData.get(PixelDocument.getKey(sourceX, sourceY)) || [
-        255, 255, 255,
-      ];
-      imageData.data[i] = color[0];
-      imageData.data[i + 1] = color[1];
-      imageData.data[i + 2] = color[2];
-      imageData.data[i + 3] = 255;
+      const colorHex =
+        pixelData.get(PixelDocument.getKey(sourceX, sourceY)) || "ffffffff";
+      const color = hexToRgba(colorHex);
+      imageData.data[i] = color.r;
+      imageData.data[i + 1] = color.g;
+      imageData.data[i + 2] = color.b;
+      imageData.data[i + 3] = color.a;
     }
   }
   ctx.putImageData(imageData, 0, 0);
@@ -427,12 +434,14 @@ async function fromBase64Image(
   for (let y = 0; y < finalHeight; y++) {
     for (let x = 0; x < finalWidth; x++) {
       const i = (y * finalWidth + x) * 4;
-      const color: RGB = [
+      const color: RGBHEX = rgbaToHex(
         imageData.data[i],
         imageData.data[i + 1],
         imageData.data[i + 2],
-      ];
+        imageData.data[i + 3]
+      );
       crdt.set(PixelDocument.getKey(x, y), color);
+      pixelsSet++;
     }
   }
 

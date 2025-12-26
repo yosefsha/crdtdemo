@@ -1,9 +1,9 @@
 import { Document, DocumentDeltaPacket, DocumentMergeResult } from "./database/Document";
 import { CollectionDelta } from "./database/Collection";
 import { AgentId, ReplicaId } from "./database/CRDTItem";
-import { RGB } from "./types";
-export type PixelDeltaPacket = DocumentDeltaPacket<RGB>;
-export type MergeResult = DocumentMergeResult<RGB>;
+import { RGBHEX } from "./types";
+export type PixelDeltaPacket = DocumentDeltaPacket<RGBHEX>;
+export type MergeResult = DocumentMergeResult<RGBHEX>;
 /**
  * Pixel-specific CRDT that wraps Document
  * Maintains backward compatibility with old PixelDataCRDT API
@@ -21,11 +21,11 @@ export declare class PixelDocument {
     /**
      * Set a pixel value and return the delta
      */
-    set(key: string, value: RGB | null, timestamp?: number): CollectionDelta<RGB> | null;
+    set(key: string, value: RGBHEX | null, timestamp?: number): CollectionDelta<RGBHEX> | null;
     /**
      * Get a pixel value
      */
-    get(key: string): RGB | null;
+    get(key: string): RGBHEX | null;
     /**
      * Get the number of pixels in the document
      */
@@ -57,10 +57,10 @@ export declare class PixelDocument {
     /**
      * Serialize to JSON
      */
-    toJSON(): ReturnType<Document<RGB>["toJSON"]>;
+    toJSON(): ReturnType<Document<RGBHEX>["toJSON"]>;
     /**
      * Deserialize from JSON
      */
-    static fromJSON(json: ReturnType<Document<RGB>["toJSON"]>, agentId: AgentId, replicaId: ReplicaId): PixelDocument;
+    static fromJSON(json: ReturnType<Document<RGBHEX>["toJSON"]>, agentId: AgentId, replicaId: ReplicaId): PixelDocument;
 }
 //# sourceMappingURL=PixelDocument.d.ts.map

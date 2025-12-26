@@ -382,7 +382,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
         ref={canvasEditorRef}
         width={CANVAS_WIDTH}
         height={CANVAS_HEIGHT}
-        color={[0, 0, 0]}
+        color={"000000ff"}
         pixelData={pixelData}
         onStateChange={token ? handleStateChange : () => {}}
         sharedState={sharedState}

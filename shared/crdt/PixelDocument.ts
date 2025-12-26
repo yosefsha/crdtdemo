@@ -8,10 +8,10 @@ import {
 } from "./database/Document";
 import { CollectionDelta } from "./database/Collection";
 import { AgentId, ReplicaId, ItemId } from "./database/CRDTItem";
-import { RGB } from "./types";
+import { RGBHEX } from "./types";
 
-export type PixelDeltaPacket = DocumentDeltaPacket<RGB>;
-export type MergeResult = DocumentMergeResult<RGB>;
+export type PixelDeltaPacket = DocumentDeltaPacket<RGBHEX>;
+export type MergeResult = DocumentMergeResult<RGBHEX>;
 
 const PIXEL_COLLECTION_ID = "pixels";
 
@@ -20,7 +20,7 @@ const PIXEL_COLLECTION_ID = "pixels";
  * Maintains backward compatibility with old PixelDataCRDT API
  */
 export class PixelDocument {
-  private document: Document<RGB>;
+  private document: Document<RGBHEX>;
   private agentId: AgentId;
   private replicaId: ReplicaId;
 
@@ -28,7 +28,7 @@ export class PixelDocument {
     this.agentId = agentId;
     this.replicaId = replicaId;
     // Use agentId as document ID for backwards compatibility
-    this.document = new Document<RGB>(agentId);
+    this.document = new Document<RGBHEX>(agentId);
   }
 
   /**
@@ -44,9 +44,9 @@ export class PixelDocument {
    */
   set(
     key: string,
-    value: RGB | null,
+    value: RGBHEX | null,
     timestamp: number = Date.now()
-  ): CollectionDelta<RGB> | null {
+  ): CollectionDelta<RGBHEX> | null {
     return this.document.setItem(
       PIXEL_COLLECTION_ID,
       key,
@@ -60,7 +60,7 @@ export class PixelDocument {
   /**
    * Get a pixel value
    */
-  get(key: string): RGB | null {
+  get(key: string): RGBHEX | null {
     return this.document.getItem(PIXEL_COLLECTION_ID, key);
   }
 
@@ -167,7 +167,7 @@ export class PixelDocument {
   /**
    * Serialize to JSON
    */
-  toJSON(): ReturnType<Document<RGB>["toJSON"]> {
+  toJSON(): ReturnType<Document<RGBHEX>["toJSON"]> {
     return this.document.toJSON();
   }
 
@@ -175,12 +175,12 @@ export class PixelDocument {
    * Deserialize from JSON
    */
   static fromJSON(
-    json: ReturnType<Document<RGB>["toJSON"]>,
+    json: ReturnType<Document<RGBHEX>["toJSON"]>,
     agentId: AgentId,
     replicaId: ReplicaId
   ): PixelDocument {
     const pixelDoc = new PixelDocument(agentId, replicaId);
-    pixelDoc.document = Document.fromJSON<RGB>(json);
+    pixelDoc.document = Document.fromJSON<RGBHEX>(json);
     return pixelDoc;
   }
 }

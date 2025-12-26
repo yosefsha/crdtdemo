@@ -221,8 +221,8 @@ rclient/
 ### PixelDataCRDT Methods
 
 ```typescript
-set(key: Key, color: RGB | null): CollectionDelta | null
-get(key: Key): RGB | null
+set(key: Key, color: RGBHEX | null): CollectionDelta | null
+get(key: Key): RGBHEX | null
 getDeltasForAgent(agentId: AgentId): DocumentDeltaPacket | null
 getDeltasForReplica(replicaId: ReplicaId): DocumentDeltaPacket | null
 merge(packet: DocumentDeltaPacket): DocumentMergeResult
@@ -332,6 +332,7 @@ if (isNewReplica && this.collections.size > 0) {
 - `replicaTimestamps`: Track what each REPLICA (client connection) has seen → **DON'T PERSIST** (session-only)
 
 When `replicaTimestamps` are persisted:
+
 - Server thinks: "This client has seen all this data"
 - Reality: Client disconnected, cleared local state, now wants data back
 - Result: Server returns null → 404 error
@@ -341,21 +342,25 @@ When `replicaTimestamps` are persisted:
 **Remove `replicaTimestamps` from `Document.toJSON()` serialization.**
 
 Only persist:
+
 - `collections` (actual pixel data)
 - `agentTimestamps` (for conflict resolution between agents)
 
 Do NOT persist:
+
 - `replicaTimestamps` (runtime tracking only)
 
 #### Consequences
 
 **Positive:**
+
 - ✅ Fixes 404 error on re-login
 - ✅ Simpler mental model: replicas are ephemeral, agents are persistent
 - ✅ Data correctness maintained (CRDT guarantees preserved)
 - ✅ Reduces storage size (no replica tracking in DB)
 
 **Negative:**
+
 - ⚠️ **Performance tradeoff**: After server restart, first sync sends ALL data instead of incremental deltas
 - ⚠️ Each new login treated as "new replica" → full state sent
 - ⚠️ Loss of cross-session incremental sync optimization
@@ -363,6 +368,7 @@ Do NOT persist:
 **Mitigation Strategies for Performance Impact:**
 
 Current implementation accepts the tradeoff because:
+
 1. **CRDT idempotency**: Client can safely merge duplicate deltas (no correctness issue)
 2. **Single-user scenario**: `replicaId = userId_client` means one replica per user, so multi-device issues don't apply
 3. **Simplicity over optimization**: Server restarts should be rare; sending full state occasionally is acceptable
@@ -370,12 +376,12 @@ Current implementation accepts the tradeoff because:
 
 **Alternative Approaches Considered:**
 
-| Approach | Pros | Cons | Decision |
-|----------|------|------|----------|
-| **Don't persist replicas** | Simple, correct, fixes bug | Sends full state after restart | ✅ **Chosen** |
-| Persist replicas | Optimal bandwidth | Complex cleanup, current bug persists | ❌ Rejected |
-| Client-driven sync | Best performance | Requires protocol change, more complex | 🔮 Future consideration |
-| Always send full state | Simplest | Wasteful even during active sessions | ❌ Rejected |
+| Approach                   | Pros                       | Cons                                   | Decision                |
+| -------------------------- | -------------------------- | -------------------------------------- | ----------------------- |
+| **Don't persist replicas** | Simple, correct, fixes bug | Sends full state after restart         | ✅ **Chosen**           |
+| Persist replicas           | Optimal bandwidth          | Complex cleanup, current bug persists  | ❌ Rejected             |
+| Client-driven sync         | Best performance           | Requires protocol change, more complex | 🔮 Future consideration |
+| Always send full state     | Simplest                   | Wasteful even during active sessions   | ❌ Rejected             |
 
 #### Implementation
 
