@@ -15,9 +15,9 @@ const app = express();
 const server = http.createServer(app);
 
 connectDb()
-  .then(() => console.log("✅ Connected to MongoDB"))
+  .then(() => console.log("✅ Connected to PostgreSQL"))
   .catch((err) => {
-    console.error("MongoDB error:", err);
+    console.error("PostgreSQL error:", err);
   });
 // Enable CORS with dynamic origins based on environment
 app.use(

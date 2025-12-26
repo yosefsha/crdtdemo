@@ -2,13 +2,14 @@ services:
   traefik:
     image: traefik:v2.11
     command:
-      - "--log.level=DEBUG"
+      - "--log.level=DEBUG" # <--- Add this line for verbose logs
       - "--api.dashboard=true"
       - "--api=true"
-      - "--api.insecure=true"
+      - "--api.insecure=true" # This allows dashboard without defining a custom router
       - "--providers.docker=true"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.traefik.address=:8080"
+
     ports:
       - "80:80"
       - "8080:8080"
@@ -19,38 +20,30 @@ services:
 
   server:
     labels:
-      - "traefik.enable=true"
-      # API routes with body limit
-      - "traefik.http.routers.server-api.rule=PathPrefix(`/api`)"
-      - "traefik.http.routers.server-api.priority=10"
-      - "traefik.http.routers.server-api.service=server"
-      - "traefik.http.routers.server-api.middlewares=server-body-limit"
-      # Socket.IO routes without middleware
-      - "traefik.http.routers.server-socket.rule=PathPrefix(`/socket`)"
-      - "traefik.http.routers.server-socket.priority=10"
-      - "traefik.http.routers.server-socket.service=server"
-      # Service configuration
+      - "traefik.http.routers.server.rule=PathPrefix(`/api`, `/socket`)"
       - "traefik.http.services.server.loadbalancer.server.port=5001"
       - "traefik.http.middlewares.server-body-limit.buffering.maxRequestBodyBytes=52428800"
+      - "traefik.http.routers.server.middlewares=server-body-limit"
+
     build:
       context: .
       dockerfile: ./server/Dockerfile
     networks:
       - app-network
     depends_on:
-      - postgres
+      - mongo
       - rabbit-mq
     environment:
-      - POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/crdtdemo
+      - MONGO_URL=mongodb://mongo:27017/mydb
       - JWT_SECRET=supersecret
       - RABBIT_URL=amqp://rabbit-mq
-
   client:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.client.rule=PathPrefix(`/`)"
       - "traefik.http.routers.client.priority=1"
       - "traefik.http.services.client.loadbalancer.server.port=80"
+
     build:
       context: .
       dockerfile: ./rclient/Dockerfile
@@ -67,47 +60,32 @@ services:
     build: ./auth
     environment:
       - JWT_SECRET=supersecret
-      - POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/crdtdemo
+      - MONGO_URI=mongodb://mongo:27017/authdb
     depends_on:
-      - postgres
+      - mongo
     networks:
       - app-network
 
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=crdtdemo
+  mongo:
+    image: mongo
     ports:
-      - "5432:5432"
+      - "27017:27017"
     networks:
       - app-network
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  pgadmin:
-    image: dpage/pgadmin4
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.pgadmin.rule=PathPrefix(`/pgadmin`)"
-      - "traefik.http.routers.pgadmin.priority=10"
-      - "traefik.http.services.pgadmin.loadbalancer.server.port=80"
-      - "traefik.http.middlewares.pgadmin-stripprefix.stripprefix.prefixes=/pgadmin"
-      - "traefik.http.routers.pgadmin.middlewares=pgadmin-stripprefix"
+      - mongo-data:/data/db
+  mongo-express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8081:8081
     environment:
-      - PGADMIN_DEFAULT_EMAIL=admin@admin.com
-      - PGADMIN_DEFAULT_PASSWORD=admin
-      - SCRIPT_NAME=/pgadmin
+      - ME_CONFIG_MONGODB_SERVER=mongo
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=admin
     networks:
       - app-network
-    depends_on:
-      - postgres
 
   rabbit-mq:
     image: rabbitmq:3
@@ -144,11 +122,11 @@ services:
       - app-network
     depends_on:
       rabbit-mq:
-        condition: service_healthy
+        condition: service_healthy # Wait for RabbitMQ to be healthy
     restart: unless-stopped
 
 networks:
   app-network:
 
 volumes:
-  postgres-data:
+  mongo-data:
