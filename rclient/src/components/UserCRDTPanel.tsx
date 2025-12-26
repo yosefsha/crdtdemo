@@ -320,24 +320,12 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
           `[${getTimestamp()}] CRDT state before enrichment: ${crdtSizeBefore} pixels`
         );
 
-        // Log CRDT size before applying enrichment
-        const crdtSizeBefore = Object.keys(pixelData.values).length;
-        console.info(
-          `[${getTimestamp()}] CRDT state before enrichment: ${crdtSizeBefore} pixels`
-        );
-
         // Use the existing pixelData instead of creating a new one
         canvasEditorRef.current?.fromBase64Image(pixelData, data.enrichedData);
         // TODO: fix this log !!!
 
         // Log CRDT size after applying enrichment
         const crdtSizeAfter = pixelData.getSize();
-        console.info(
-          `[${getTimestamp()}] CRDT state after enrichment: ${crdtSizeAfter} pixels (change: +${crdtSizeAfter - crdtSizeBefore})`
-        );
-
-        // Log CRDT size after applying enrichment
-        const crdtSizeAfter = Object.keys(pixelData.values).length;
         console.info(
           `[${getTimestamp()}] CRDT state after enrichment: ${crdtSizeAfter} pixels (change: +${crdtSizeAfter - crdtSizeBefore})`
         );

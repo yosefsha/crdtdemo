@@ -143,7 +143,7 @@ class CRDTService {
   ): Promise<DocumentMergeResult<RGB>> {
     const userDocument = await this.getOrCreateUserDocument(userId);
     const merged = userDocument.merge(deltas);
-    // Save to MongoDB after merge (upsert by userId)
+    // Save to PostgreSQL after merge (upsert by userId)
     try {
       await upsertUserCrdtDocument(
         { _id: userId },
@@ -172,7 +172,7 @@ class CRDTService {
     const userDocument = await this.getOrCreateUserDocument(userId);
 
     const mergeResult = userDocument.merge(deltas);
-    // Save to MongoDB after merge (upsert by userId)
+    // Save to PostgreSQL after merge (upsert by userId)
     try {
       await upsertUserCrdtDocument(
         { _id: userId },

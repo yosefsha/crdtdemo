@@ -403,7 +403,7 @@ async function fromBase64Image(
 
   // Log current CRDT size before processing
   // Note: PixelDocument doesn't expose size directly
-  console.log('[fromBase64Image] Starting to process image into CRDT');
+  console.log("[fromBase64Image] Starting to process image into CRDT");
 
   // Create a canvas to resize the image if needed
   const canvas = document.createElement("canvas");
@@ -436,7 +436,7 @@ async function fromBase64Image(
     }
   }
 
-  const crdtSizeAfter = Object.keys(crdt.values).length;
+  const crdtSizeAfter = crdt.getSize();
   console.log(
     `[fromBase64Image] Processed ${pixelsSet} non-transparent pixels`
   );

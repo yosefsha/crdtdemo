@@ -1,10 +1,11 @@
-process.env.MONGO_URL = "mongodb://localhost:27017/";
+process.env.POSTGRES_URL =
+  "postgresql://postgres:postgres@localhost:5432/crdtdemo";
 process.env.DISABLE_AUTH_FOR_TESTS = "true";
 
 import request from "supertest";
 import app from "../index"; // Adjust if your Express app is exported elsewhere
-import { mongoose } from "../db"; // Import mongoose for database connection
-jest.setTimeout(10000); // Set timeout to 30 seconds
+import { pool } from "../db"; // Import pool for database connection
+jest.setTimeout(10000); // Set timeout to 10 seconds
 
 describe.skip("API Integration: /sync", () => {
   // Set a timeout for the tests
@@ -41,9 +42,7 @@ describe.skip("API Integration: /sync", () => {
   });
 
   afterAll(async () => {
-    // If you have access to the db service or client:
-    // await userCrdtDb.disconnect?.();
-    // or, if you use mongoose:
-    await mongoose.disconnect();
+    // Close PostgreSQL connection pool
+    await pool.end();
   });
 });

@@ -1,75 +1,152 @@
-import { MongoClient, Db, Collection, ObjectId } from "mongodb";
+import { Pool, PoolClient, QueryResult } from "pg";
 
-// This is a database service that uses the MongoDb client to interact with the database.
+// This is a database service that uses PostgreSQL to interact with the database.
 // The service is used by the controllers to interact with the database.
 
 class DbService {
-  private client: MongoClient;
-  private db!: Db;
-  private collection!: Collection;
+  private pool: Pool;
+  private tableName: string;
 
   constructor(
-    private uri: string,
-    private dbName: string,
-    private collectionName: string
+    private connectionString: string,
+    private dbName: string, // Not used in Postgres, kept for compatibility
+    private tableNameParam: string
   ) {
-    this.client = new MongoClient(this.uri, {});
+    this.tableName = tableNameParam;
+    this.pool = new Pool({
+      connectionString: this.connectionString,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    });
   }
 
   async connect() {
-    await this.client.connect();
-    this.db = this.client.db(this.dbName);
-    this.collection = this.db.collection(this.collectionName);
-    console.log(
-      `Connected to database: ${this.dbName}, collection: ${this.collectionName}`
-    );
+    // Create table if it doesn't exist
+    const createTableQuery = `
+      CREATE TABLE IF NOT EXISTS ${this.tableName} (
+        _id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        crdt JSONB NOT NULL,
+        timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_${this.tableName}_user_id ON ${this.tableName}(user_id);
+      CREATE INDEX IF NOT EXISTS idx_${this.tableName}_timestamp ON ${this.tableName}(timestamp);
+    `;
+
+    await this.pool.query(createTableQuery);
+    console.log(`Connected to PostgreSQL database, table: ${this.tableName}`);
   }
 
   async disconnect() {
-    await this.client.close();
-    console.log(`Disconnected from database: ${this.dbName}`);
+    await this.pool.end();
+    console.log(`Disconnected from PostgreSQL database`);
   }
 
   async createDocument(document: any) {
-    const result = await this.collection.insertOne(document);
-    const insertedDocument = await this.collection.findOne({
-      _id: result.insertedId,
-    });
-    return insertedDocument;
+    const { _id, userId, crdt, timestamp } = document;
+    const query = `
+      INSERT INTO ${this.tableName} (_id, user_id, crdt, timestamp)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `;
+    const values = [
+      _id,
+      userId || _id,
+      JSON.stringify(crdt),
+      timestamp || new Date(),
+    ];
+    const result = await this.pool.query(query, values);
+    return this.parseRow(result.rows[0]);
   }
 
   async readDocument(id: string) {
-    const document = await this.collection.findOne({ _id: new ObjectId(id) });
-    return document;
+    const query = `SELECT * FROM ${this.tableName} WHERE _id = $1`;
+    const result = await this.pool.query(query, [id]);
+    return result.rows.length > 0 ? this.parseRow(result.rows[0]) : null;
   }
 
   async updateDocument(id: string, update: any) {
-    const result = await this.collection.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: update }
-    );
-    return result.modifiedCount > 0;
+    const { userId, crdt, timestamp } = update;
+    const query = `
+      UPDATE ${this.tableName}
+      SET user_id = COALESCE($2, user_id),
+          crdt = COALESCE($3, crdt),
+          timestamp = COALESCE($4, timestamp),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE _id = $1
+      RETURNING *
+    `;
+    const values = [id, userId, crdt ? JSON.stringify(crdt) : null, timestamp];
+    const result = await this.pool.query(query, values);
+    return result.rowCount! > 0;
   }
 
   async deleteDocument(id: string) {
-    const result = await this.collection.deleteOne({ _id: new ObjectId(id) });
-    return result.deletedCount > 0;
+    const query = `DELETE FROM ${this.tableName} WHERE _id = $1`;
+    const result = await this.pool.query(query, [id]);
+    return result.rowCount! > 0;
   }
 
   async readAllDocuments() {
-    const documents = await this.collection.find().toArray();
-    return documents;
+    const query = `SELECT * FROM ${this.tableName} ORDER BY timestamp DESC`;
+    const result = await this.pool.query(query);
+    return result.rows.map((row) => this.parseRow(row));
   }
 
-  // Upsert a document by filter (e.g., { userId })
+  // Upsert a document by filter (e.g., { _id: userId })
   async upsertDocument(filter: any, update: any) {
-    const result = await this.collection.updateOne(
-      filter,
-      { $set: update },
-      { upsert: true }
-    );
-    // Return the upserted or updated document
-    return this.collection.findOne(filter);
+    const id = filter._id || filter.userId;
+    const { userId, crdt, timestamp } = update;
+
+    if (!id) {
+      throw new Error("Upsert requires _id or userId in filter");
+    }
+
+    // First try to find existing document
+    const existing = await this.readDocument(id);
+
+    // If no update data provided, just return existing or null
+    if (!userId && !crdt && !timestamp) {
+      return existing;
+    }
+
+    const query = `
+      INSERT INTO ${this.tableName} (_id, user_id, crdt, timestamp)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (_id)
+      DO UPDATE SET
+        user_id = COALESCE(EXCLUDED.user_id, ${this.tableName}.user_id),
+        crdt = COALESCE(EXCLUDED.crdt, ${this.tableName}.crdt),
+        timestamp = COALESCE(EXCLUDED.timestamp, ${this.tableName}.timestamp),
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+    `;
+
+    const values = [
+      id,
+      userId || id,
+      crdt
+        ? JSON.stringify(crdt)
+        : existing?.crdt
+        ? JSON.stringify(existing.crdt)
+        : null,
+      timestamp || new Date(),
+    ];
+
+    const result = await this.pool.query(query, values);
+    return this.parseRow(result.rows[0]);
+  }
+
+  // Helper to parse JSONB back to object
+  private parseRow(row: any) {
+    if (!row) return null;
+    return {
+      ...row,
+      crdt: typeof row.crdt === "string" ? JSON.parse(row.crdt) : row.crdt,
+    };
   }
 }
 
