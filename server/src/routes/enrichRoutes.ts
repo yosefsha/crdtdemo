@@ -65,11 +65,25 @@ router.post("/enrich", verifyJWT, async (req, res) => {
     return;
   }
   // Parse the incoming data
-  const { base64, requestId, socketId } = req.body;
+  const { base64, requestId, socketId, batchInfo } = req.body;
+
+  // Treat missing batchInfo as single batch
+  const normalizedBatchInfo = batchInfo || {
+    batchId: "",
+    batchIndex: 0,
+    totalBatches: 1,
+    isComplete: true,
+    itemsInBatch: 1,
+    totalItems: 1,
+  };
 
   // Log request
   console.info(
-    `[${getCurrentTime()}] [INFO][enrich] Received enrichment request for requestId: ${requestId}, socketId: ${socketId}`
+    `[${getCurrentTime()}] [INFO][enrich] Received enrichment request batch ${
+      normalizedBatchInfo.batchIndex + 1
+    }/${
+      normalizedBatchInfo.totalBatches
+    } for requestId: ${requestId}, socketId: ${socketId}`
   );
   console.info(
     `[${getCurrentTime()}] [DEBUG][enrich] Base64 data: ${base64?.substring(
@@ -80,7 +94,15 @@ router.post("/enrich", verifyJWT, async (req, res) => {
 
   try {
     const result = await enrichImage({ base64, requestId, socketId });
-    res.status(202).json(result);
+
+    // Always return batchInfo
+    res.status(202).json({
+      ...result,
+      batchInfo: {
+        ...normalizedBatchInfo,
+        processed: true,
+      },
+    });
   } catch (error) {
     console.error(
       `[${getCurrentTime()}] [ERROR][enrich] Error processing enrichment:`,

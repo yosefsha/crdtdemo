@@ -91,13 +91,20 @@ class Document {
     }
     /**
      * Get deltas for an agent (inter-agent sync)
+     * @param agentId - The agent to get deltas for
+     * @param maxDeltasPerCollection - Optional limit on deltas per collection for batching
+     * @returns DocumentDeltaPacket or null if no deltas available
      */
-    getDeltasForAgent(agentId) {
+    getDeltasForAgent(agentId, maxDeltasPerCollection) {
         const collectionDeltas = {};
         const agentCollections = this.agentTimestamps.get(agentId) || new Map();
         this.collections.forEach((collection, collectionId) => {
             const agentItems = agentCollections.get(collectionId) || new Map();
-            const deltas = collection.getDeltasSince(agentItems);
+            let deltas = collection.getDeltasSince(agentItems);
+            // Apply batching limit if specified
+            if (maxDeltasPerCollection && deltas.length > maxDeltasPerCollection) {
+                deltas = deltas.slice(0, maxDeltasPerCollection);
+            }
             if (deltas.length > 0) {
                 collectionDeltas[collectionId] = deltas;
             }
@@ -111,6 +118,56 @@ class Document {
             fromReplica: "", // Will be set by caller
             fromAgent: "", // Will be set by caller
         };
+    }
+    /**
+     * Get deltas for an agent with pagination support
+     * @param agentId - The agent to get deltas for
+     * @param options - Pagination options
+     * @returns Paginated delta packet with metadata
+     */
+    getDeltasForAgentPaginated(agentId, options = {}) {
+        const { batchSize = 1000, collectionId, offset = 0 } = options;
+        const agentCollections = this.agentTimestamps.get(agentId) || new Map();
+        let totalDeltas = 0;
+        let currentOffset = offset;
+        const collectionDeltas = {};
+        // Filter collections if specific collection requested
+        const collectionsToSync = collectionId
+            ? this.collections.has(collectionId)
+                ? [[collectionId, this.collections.get(collectionId)]]
+                : []
+            : Array.from(this.collections.entries());
+        for (const [colId, collection] of collectionsToSync) {
+            const agentItems = agentCollections.get(colId) || new Map();
+            const allDeltas = collection.getDeltasSince(agentItems);
+            totalDeltas += allDeltas.length;
+            // Skip deltas before offset
+            if (currentOffset >= allDeltas.length) {
+                currentOffset -= allDeltas.length;
+                continue;
+            }
+            // Take deltas for this batch
+            const deltasToTake = Math.min(batchSize - Object.values(collectionDeltas).flat().length, allDeltas.length - currentOffset);
+            if (deltasToTake > 0) {
+                collectionDeltas[colId] = allDeltas.slice(currentOffset, currentOffset + deltasToTake);
+                currentOffset = 0;
+            }
+            // Stop if batch is full
+            if (Object.values(collectionDeltas).flat().length >= batchSize) {
+                break;
+            }
+        }
+        const packet = Object.keys(collectionDeltas).length > 0
+            ? {
+                documentId: this.documentId,
+                collectionDeltas,
+                fromReplica: "",
+                fromAgent: "",
+            }
+            : null;
+        const deltasReturned = Object.values(collectionDeltas).flat().length;
+        const hasMore = offset + deltasReturned < totalDeltas;
+        return { packet, hasMore, totalDeltas };
     }
     /**
      * Get all items from all collections
@@ -292,6 +349,317 @@ class Document {
             fromReplica: "",
             fromAgent: "",
         };
+    }
+    // ============================================================================
+    // Batching Methods (Type-Agnostic)
+    // ============================================================================
+    /**
+     * Start batched delta sync for an agent
+     * Automatically splits into batches if the delta packet is too large
+     */
+    startBatchedDeltasForAgent(agentId, options = {}) {
+        // Get full deltas using existing method
+        const fullPacket = this.getDeltasForAgent(agentId);
+        if (!fullPacket) {
+            return null; // No deltas to send
+        }
+        // Estimate size
+        const estimatedSize = this.estimatePacketSize(fullPacket);
+        const threshold = options.maxBytesPerBatch ?? 5000000;
+        // If small enough, return as single batch
+        if (estimatedSize < threshold * 0.8) {
+            // 80% threshold for safety
+            return {
+                packet: fullPacket,
+                batchInfo: {
+                    batchId: "", // No batch ID needed
+                    batchIndex: 0,
+                    totalBatches: 1,
+                    isComplete: true,
+                    itemsInBatch: this.countDeltas(fullPacket),
+                    totalItems: this.countDeltas(fullPacket),
+                },
+            };
+        }
+        // Split into batches
+        const batches = this.splitIntoBatches(fullPacket, options);
+        const batchId = this.generateBatchId();
+        // Store session
+        const session = {
+            batchId,
+            agentId,
+            documentId: this.documentId,
+            batches,
+            acknowledgedBatches: new Set(),
+            totalItems: this.countDeltas(fullPacket),
+            createdAt: Date.now(),
+            expiresAt: Date.now() + 5 * 60 * 1000, // 5 minute TTL
+        };
+        if (!this.batchSessions) {
+            this.batchSessions = new Map();
+        }
+        this.batchSessions.set(batchId, session);
+        // Return first batch
+        return {
+            packet: batches[0],
+            batchInfo: {
+                batchId,
+                batchIndex: 0,
+                totalBatches: batches.length,
+                isComplete: false,
+                itemsInBatch: this.countDeltas(batches[0]),
+                totalItems: session.totalItems,
+            },
+        };
+    }
+    /**
+     * Start batched delta sync for a replica
+     * Automatically splits into batches if the delta packet is too large
+     */
+    startBatchedDeltasForReplica(replicaId, options = {}) {
+        // Get full deltas using existing method
+        const fullPacket = this.getDeltasForReplica(replicaId);
+        if (!fullPacket) {
+            return null; // No deltas to send
+        }
+        // Estimate size
+        const estimatedSize = this.estimatePacketSize(fullPacket);
+        const threshold = options.maxBytesPerBatch ?? 5000000;
+        // If small enough, return as single batch
+        if (estimatedSize < threshold * 0.8) {
+            // 80% threshold for safety
+            return {
+                packet: fullPacket,
+                batchInfo: {
+                    batchId: "", // No batch ID needed
+                    batchIndex: 0,
+                    totalBatches: 1,
+                    isComplete: true,
+                    itemsInBatch: this.countDeltas(fullPacket),
+                    totalItems: this.countDeltas(fullPacket),
+                },
+            };
+        }
+        // Split into batches
+        const batches = this.splitIntoBatches(fullPacket, options);
+        const batchId = this.generateBatchId();
+        // Store session
+        const session = {
+            batchId,
+            agentId: "", // Not used for replica sync
+            replicaId,
+            documentId: this.documentId,
+            batches,
+            acknowledgedBatches: new Set(),
+            totalItems: this.countDeltas(fullPacket),
+            createdAt: Date.now(),
+            expiresAt: Date.now() + 5 * 60 * 1000, // 5 minute TTL
+        };
+        if (!this.batchSessions) {
+            this.batchSessions = new Map();
+        }
+        this.batchSessions.set(batchId, session);
+        // Return first batch
+        return {
+            packet: batches[0],
+            batchInfo: {
+                batchId,
+                batchIndex: 0,
+                totalBatches: batches.length,
+                isComplete: false,
+                itemsInBatch: this.countDeltas(batches[0]),
+                totalItems: session.totalItems,
+            },
+        };
+    }
+    /**
+     * Get next batch in an ongoing session
+     */
+    getNextBatch(batchId) {
+        const session = this.batchSessions?.get(batchId);
+        if (!session) {
+            return null; // Session expired or doesn't exist
+        }
+        // Check expiration
+        if (Date.now() > session.expiresAt) {
+            this.batchSessions?.delete(batchId);
+            return null;
+        }
+        // Find next unacknowledged batch
+        let nextIndex = -1;
+        for (let i = 0; i < session.batches.length; i++) {
+            if (!session.acknowledgedBatches.has(i)) {
+                nextIndex = i;
+                break;
+            }
+        }
+        if (nextIndex === -1) {
+            // All batches acknowledged
+            this.batchSessions?.delete(batchId);
+            return null;
+        }
+        const isComplete = nextIndex === session.batches.length - 1;
+        return {
+            packet: session.batches[nextIndex],
+            batchInfo: {
+                batchId,
+                batchIndex: nextIndex,
+                totalBatches: session.batches.length,
+                isComplete,
+                itemsInBatch: this.countDeltas(session.batches[nextIndex]),
+                totalItems: session.totalItems,
+            },
+        };
+    }
+    /**
+     * Acknowledge batch receipt
+     * Updates vector clocks for items in this batch only
+     */
+    acknowledgeBatch(batchId, batchIndex, mergeResult) {
+        const session = this.batchSessions?.get(batchId);
+        if (!session) {
+            return; // Session expired
+        }
+        // Mark batch as acknowledged
+        session.acknowledgedBatches.add(batchIndex);
+        // Update vector clocks using existing method
+        if (session.agentId) {
+            this.acknowledgeMerge(session.agentId, mergeResult);
+        }
+        else if (session.replicaId) {
+            this.acknowledgeReplicaMerge(session.replicaId, mergeResult);
+        }
+        // Cleanup if all batches acknowledged
+        if (session.acknowledgedBatches.size === session.batches.length) {
+            this.batchSessions?.delete(batchId);
+        }
+    }
+    /**
+     * Cancel batch session
+     */
+    cancelBatch(batchId) {
+        this.batchSessions?.delete(batchId);
+    }
+    /**
+     * Cleanup expired batch sessions (call periodically)
+     */
+    cleanupExpiredBatches() {
+        if (!this.batchSessions)
+            return;
+        const now = Date.now();
+        const toDelete = [];
+        this.batchSessions.forEach((session, batchId) => {
+            if (now > session.expiresAt) {
+                toDelete.push(batchId);
+            }
+        });
+        toDelete.forEach((batchId) => this.batchSessions?.delete(batchId));
+    }
+    /**
+     * Estimate size of a delta packet in bytes
+     * Uses sampling to avoid serializing the entire packet
+     */
+    estimatePacketSize(packet) {
+        // Fast path: count deltas × average size
+        let totalDeltas = 0;
+        Object.values(packet.collectionDeltas).forEach((deltas) => {
+            totalDeltas += deltas.length;
+        });
+        if (totalDeltas === 0)
+            return 0;
+        // Sample a few items to estimate average size
+        const samples = this.sampleDeltas(packet, Math.min(10, totalDeltas));
+        const avgSize = samples.reduce((sum, delta) => {
+            return sum + JSON.stringify(delta).length;
+        }, 0) / samples.length;
+        // Estimate: total deltas × average + overhead
+        const estimatedSize = totalDeltas * avgSize;
+        const overhead = JSON.stringify({
+            documentId: packet.documentId,
+            fromReplica: packet.fromReplica,
+            fromAgent: packet.fromAgent,
+        }).length;
+        return estimatedSize + overhead;
+    }
+    /**
+     * Sample random deltas for size estimation
+     */
+    sampleDeltas(packet, count) {
+        const allDeltas = [];
+        Object.values(packet.collectionDeltas).forEach((deltas) => {
+            allDeltas.push(...deltas);
+        });
+        // Simple random sampling
+        const samples = [];
+        const step = Math.max(1, Math.floor(allDeltas.length / count));
+        for (let i = 0; i < allDeltas.length; i += step) {
+            samples.push(allDeltas[i]);
+            if (samples.length >= count)
+                break;
+        }
+        return samples;
+    }
+    /**
+     * Split deltas into batches based on size constraints
+     */
+    splitIntoBatches(fullPacket, options) {
+        const maxBytes = options.maxBytesPerBatch ?? 5000000;
+        const maxItems = options.maxItemsPerBatch ?? 20000;
+        const batches = [];
+        let currentBatch = {};
+        let currentSize = 0;
+        let currentItemCount = 0;
+        // Iterate through collections and deltas
+        Object.entries(fullPacket.collectionDeltas).forEach(([collectionId, deltas]) => {
+            for (const delta of deltas) {
+                // Estimate size of this delta
+                const deltaSize = JSON.stringify(delta).length;
+                // Check if adding this delta would exceed limits
+                if (currentItemCount > 0 && // Don't create empty batch
+                    (currentSize + deltaSize > maxBytes || currentItemCount >= maxItems)) {
+                    // Finalize current batch
+                    batches.push({
+                        documentId: fullPacket.documentId,
+                        collectionDeltas: currentBatch,
+                        fromReplica: fullPacket.fromReplica,
+                        fromAgent: fullPacket.fromAgent,
+                    });
+                    // Start new batch
+                    currentBatch = {};
+                    currentSize = 0;
+                    currentItemCount = 0;
+                }
+                // Add delta to current batch
+                if (!currentBatch[collectionId]) {
+                    currentBatch[collectionId] = [];
+                }
+                currentBatch[collectionId].push(delta);
+                currentSize += deltaSize;
+                currentItemCount++;
+            }
+        });
+        // Add final batch if not empty
+        if (currentItemCount > 0) {
+            batches.push({
+                documentId: fullPacket.documentId,
+                collectionDeltas: currentBatch,
+                fromReplica: fullPacket.fromReplica,
+                fromAgent: fullPacket.fromAgent,
+            });
+        }
+        return batches;
+    }
+    /**
+     * Helper: count total deltas in packet
+     */
+    countDeltas(packet) {
+        return Object.values(packet.collectionDeltas).reduce((sum, deltas) => sum + deltas.length, 0);
+    }
+    /**
+     * Helper: generate unique batch ID
+     */
+    generateBatchId() {
+        return `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
     /**
      * Serialize to JSON for database persistence

@@ -11,6 +11,7 @@ import SyncOptions from "./SyncOptions";
 import { SyncOption } from "./SyncOptions";
 import type { AppUser } from "../types/app";
 import { io, Socket } from "socket.io-client";
+import { sendWithBatching } from "../services/batchService";
 // TEST: Import from shared to verify compilation
 import { CRDTDatabase } from "@crdtdemo/shared";
 
@@ -126,6 +127,9 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
 
   const [sharedState, setSharedState] = React.useState(0);
 
+  // Prevent concurrent sync operations
+  const syncInProgressRef = React.useRef(false);
+
   // Store the list of users from the backend
   // Add 'replica' to SyncOption type if you want to support intra-agent sync in the UI
   const [syncOption, setSyncOption] = React.useState<SyncOption>("remote");
@@ -158,35 +162,60 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
 
   // Inter-agent sync (with server or other agent)
   async function handleRemoteSync() {
+    if (syncInProgressRef.current) {
+      console.warn(
+        `[${getTimestamp()}] [WARN] Sync already in progress, skipping`
+      );
+      return;
+    }
+
     if (token) {
+      syncInProgressRef.current = true;
       try {
         // Get only the deltas that the server (other agent) hasn't acknowledged yet
         const deltaPacket = pixelData.getDeltaForReplica(serverReplicaId);
+
+        // If no deltas to send, skip sync
+        if (!deltaPacket) {
+          console.info(
+            `[${getTimestamp()}] [INFO] [remote] No new deltas to sync with server`
+          );
+          return;
+        }
+
         console.info(
           `[${getTimestamp()}] [INFO] [remote] Sending replica-level deltas to server:`,
           deltaPacket
         );
-        const res = await fetch(`${config.apiDomain}/sync`, {
-          method: "POST",
-          headers: {
+
+        // Use batching service to automatically handle large payloads
+        const data = await sendWithBatching(
+          `${config.apiDomain}/sync`,
+          "POST",
+          {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ deltas: deltaPacket }),
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          throw err;
-        }
-        const data = await res.json();
+          { deltas: deltaPacket },
+          {
+            onBatchComplete: (response, batchIndex) => {
+              console.log(
+                `[${getTimestamp()}] [INFO] [remote] Batch ${batchIndex + 1} processed`
+              );
+            },
+          }
+        );
+
         const morePacket = handleSyncResponse(
           "agent",
-          data,
+          data.data,
           undefined,
           serverReplicaId
         );
         if (morePacket) {
+          syncInProgressRef.current = false; // Release lock before recursive call
           handleRemoteSync(); // Recursively handle any additional deltas
+          return; // Let the recursive call handle the finally block
         }
         console.info(
           `[${getTimestamp()}] [INFO] [remote] Agent-level sync complete`
@@ -196,6 +225,8 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
           `[${getTimestamp()}] [ERROR] Failed to sync agent-level deltas to server`,
           err
         );
+      } finally {
+        syncInProgressRef.current = false;
       }
     }
   }
@@ -206,30 +237,61 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     if (token && otherUserId) {
       try {
         const deltaPacket = pixelData.getDeltaForAgent(otherUserId);
+
+        // If no deltas to send, skip sync
+        if (!deltaPacket) {
+          console.info(
+            `[${getTimestamp()}] [INFO] [otherUser] No new deltas to sync with other user`
+          );
+          return;
+        }
+
         const reqData = {
           deltas: deltaPacket,
           targetUser: otherUserId,
         };
-        const res = await fetch(`${config.apiDomain}/sync-from-other`, {
-          method: "POST",
-          headers: {
+
+        // Use batching service to automatically handle large payloads
+        const resData = await sendWithBatching(
+          `${config.apiDomain}/sync-from-other`,
+          "POST",
+          {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(reqData),
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          throw err;
-        }
-        const resData = await res.json();
-        // handleSyncResponse("agent", resData.data, otherUserId);
-        pixelData.merge(resData.data); // Merge deltas into pixelData
-        setSharedState((s) => s + 1); // Force re-render after sync
-        console.debug(
-          `[${getTimestamp()}] [DEBUG] Merged deltas from other user:`,
-          resData.data
+          reqData,
+          {
+            onBatchComplete: (response, batchIndex) => {
+              console.log(
+                `[${getTimestamp()}] [INFO] [otherUser] Batch ${batchIndex + 1} processed`
+              );
+            },
+          }
         );
+
+        console.debug(
+          `[${getTimestamp()}] [DEBUG] Response from sync-from-other:`,
+          resData
+        );
+
+        // resData.data is DocumentMergeResult { applied, missing }
+        // The server already merged deltas into targetUser's document
+        // We just need to acknowledge on our side (client is sourceUser)
+        if (resData.data && resData.data.missing) {
+          // Server returned deltas that targetUser has but we don't - merge them
+          const missingPacket = {
+            documentId: userId, // Use userId as document ID
+            collectionDeltas: resData.data.missing,
+            fromAgent: otherUserId,
+            fromReplica: "",
+          };
+          pixelData.merge(missingPacket);
+          setSharedState((s) => s + 1);
+          console.debug(
+            `[${getTimestamp()}] [DEBUG] Merged missing deltas from ${otherUserId}`
+          );
+        }
+
         console.info(
           `[${getTimestamp()}] [INFO] [otherUser] Agent-level sync to other user complete`
         );
@@ -247,6 +309,14 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
   }
 
   async function handleEnrichSync() {
+    if (syncInProgressRef.current) {
+      console.warn(
+        `[${getTimestamp()}] [WARN] Sync already in progress, skipping enrich`
+      );
+      return;
+    }
+
+    syncInProgressRef.current = true;
     const base64 = toBase64Image(pixelData, CRDT_WIDTH, CRDT_HEIGHT);
     console.info(
       `[${getTimestamp()}] Generated base64 for enrichment:`,
@@ -262,29 +332,33 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
 
     socket.on("connect", async () => {
       try {
-        const res = await fetch("/api/enrich", {
-          method: "POST",
-          headers: {
+        // Use batching service to automatically handle large base64 images
+        await sendWithBatching(
+          "/api/enrich",
+          "POST",
+          {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ base64, requestId, socketId: socket.id }),
-        });
-        if (!res.ok) {
-          console.error(
-            `[${getTimestamp()}] Enrichment request failed:`,
-            res.status,
-            res.statusText
-          );
-          socket.disconnect();
-          return;
-        }
+          { base64, requestId, socketId: socket.id },
+          {
+            onBatchComplete: (response, batchIndex) => {
+              console.log(
+                `[${getTimestamp()}] [INFO] [enrich] Batch ${batchIndex + 1} sent`
+              );
+            },
+          }
+        );
+        console.info(
+          `[${getTimestamp()}] [INFO] [enrich] Enrichment request sent successfully`
+        );
       } catch (error) {
         console.error(
           `[${getTimestamp()}] Error sending enrichment request:`,
           error
         );
         socket.disconnect();
+        syncInProgressRef.current = false;
       }
     });
 
@@ -333,12 +407,14 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
         console.info(`[${getTimestamp()}] enrichment result applied to canvas`);
         setSharedState((s) => s + 1);
         socket.disconnect();
+        syncInProgressRef.current = false;
       }
     });
 
     socket.on("connect_error", (err) => {
       console.error(`[${getTimestamp()}] Socket connection error:`, err);
       socket.disconnect();
+      syncInProgressRef.current = false;
     });
   }
 

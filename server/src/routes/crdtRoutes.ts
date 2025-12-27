@@ -2,13 +2,11 @@ import { Router, Request, Response, NextFunction } from "express";
 // Update the import path if needed, or create the middleware/auth.ts file with verifyJWT exported
 import { verifyJWT } from "../routes/verifyJWT";
 import { crdtService } from "../services/crdtService";
+import { batchService } from "../services/batchService";
 import { DocumentDeltaPacket, RGBHEX } from "@crdtdemo/shared";
 import { getCurrentTime } from "../services/helpers";
 
 const router = Router();
-
-// In-memory store for demo purposes
-const userCRDTs: Record<string, any> = {};
 
 router.get("/sync", verifyJWT, async (req, res) => {
   // Get userId from JWT (set by verifyJWT)
@@ -60,7 +58,7 @@ router.post("/sync", verifyJWT, async (req, res) => {
     return;
   }
   //parse the incoming state
-  const { deltas } = req.body;
+  const { deltas, batchInfo } = req.body;
   if (!(deltas as DocumentDeltaPacket<RGBHEX>)) {
     res.status(422).json({ error: "You must provide a state" });
     return;
@@ -68,9 +66,35 @@ router.post("/sync", verifyJWT, async (req, res) => {
 
   // merge the incoming state with the user's state
   try {
-    console.log(`[${getCurrentTime()}] will sync deltas: for user ${userId}`);
-    const mergeResult = await crdtService.syncUserDeltas(`${userId}`, deltas);
-    res.json({ data: mergeResult });
+    // Treat missing batchInfo as single batch
+    const normalizedBatchInfo = batchInfo || {
+      batchId: "",
+      batchIndex: 0,
+      totalBatches: 1,
+      isComplete: true,
+      itemsInBatch: 0,
+      totalItems: 0,
+    };
+
+    console.log(
+      `[${getCurrentTime()}] Receiving batch ${
+        normalizedBatchInfo.batchIndex + 1
+      }/${normalizedBatchInfo.totalBatches} from user ${userId}`
+    );
+
+    const mergeResult = await batchService.handleBatchSync(`${userId}`, {
+      deltas,
+      batchInfo: normalizedBatchInfo,
+    });
+
+    // Always return batchInfo
+    res.json({
+      data: mergeResult,
+      batchInfo: {
+        ...normalizedBatchInfo,
+        processed: true,
+      },
+    });
   } catch (error) {
     res.status(400).json({ error: "Error syncing state" });
   }
@@ -81,13 +105,8 @@ router.post("/sync-from-other", verifyJWT, async (req, res) => {
   try {
     const user = (req as any).user;
     const userId = user && (user.user_id || user.id || user.email || user.sub);
-    const { deltas, targetUser } = req.body;
-    console.log("/sync-from-other called", {
-      userId,
-      targetUser,
-      deltasPresent: !!deltas,
-      userObj: user,
-    });
+    const { deltas, targetUser, batchInfo } = req.body;
+
     if (!userId) {
       res.status(401).json({ error: "User ID not found in JWT" });
       return;
@@ -102,10 +121,31 @@ router.post("/sync-from-other", verifyJWT, async (req, res) => {
       return;
     }
 
-    // 3. Merge the other user's CRDT into the current user's CRDT
-    const result = await crdtService.mergeOtherUserCRDTs(userId, targetUser);
-    // 4. Return the merged CRDT (or just confirmation)
-    res.json({ data: result });
+    // Treat missing batchInfo as single batch
+    const normalizedBatchInfo = batchInfo || {
+      batchId: "",
+      batchIndex: 0,
+      totalBatches: 1,
+      isComplete: true,
+      itemsInBatch: 0,
+      totalItems: 0,
+    };
+
+    // Merge the other user's CRDT using batch service
+    const result = await batchService.handleBatchSyncFromOther(userId, {
+      deltas,
+      batchInfo: normalizedBatchInfo,
+      targetUser,
+    });
+
+    // Always return batchInfo
+    res.json({
+      data: result,
+      batchInfo: {
+        ...normalizedBatchInfo,
+        processed: true,
+      },
+    });
   } catch (err) {
     console.error("[/sync-from-other] Error:", err);
     res.status(500).json({ error: "Internal server error" });

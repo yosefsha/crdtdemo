@@ -236,7 +236,213 @@ acknowledgeMerge(result: DocumentMergeResult): void
 - **client**: React app served by nginx (internal port 80)
 - **auth**: Flask authentication service
 
-## 📝 Development Notes
+## � Batching System & Monitoring
+
+### Overview
+
+To handle large CRDT payloads (>5MB) that exceed HTTP request limits, the system implements transparent automatic batching at both the client and server levels. The batching system splits large sync operations into multiple smaller requests while maintaining CRDT consistency.
+
+### Automatic Batching Strategy
+
+**Client-Side (`rclient/src/services/batchService.ts`):**
+
+- Automatically detects payload size before sending
+- If payload < 4MB: Sends as single batch with `batchInfo` metadata
+- If payload > 4MB: Splits into multiple sequential batches
+- Handles CRDT deltas and base64 images (enrichment)
+
+**Server-Side (`server/src/services/batchService.ts`):**
+
+- Tracks batch sessions using `batchId` for multi-batch operations
+- Merges deltas from each batch incrementally
+- Leverages CRDT idempotency for duplicate tolerance
+- Cleans up sessions when all batches received
+
+**Shared Layer (`shared/crdt/database/Document.ts`):**
+
+- `startBatchedDeltasForAgent()` / `startBatchedDeltasForReplica()`: Initialize batched sync
+- Auto-splits at 5MB or 20,000 items per batch
+- `getNextBatch()`: Retrieve next batch in sequence
+- `acknowledgeBatch()`: Mark batch as received
+- `cancelBatch()`: Abort batch session (5-minute TTL)
+
+### Batch Logging
+
+The server provides detailed batch processing logs with visual indicators:
+
+#### Log Format
+
+```
+📦 Processing batch X/Y (batchId: ABC123)
+✅ Applied batch X/Y - Applied: N items, Missing: M items
+```
+
+#### Log Symbols
+
+- **📦** - Batch received and being processed
+- **✅** - Batch successfully applied with statistics
+- **[BatchService]** - Prefix for all batch-related logs
+
+#### Key Metrics Tracked
+
+1. **Batch Progress**: `X/Y` shows current batch number out of total
+2. **Batch ID**: Unique identifier for the entire sync session (e.g., `batch_1735315200000_a3f9e`)
+3. **Applied Items**: Count of new deltas merged into CRDT state
+4. **Missing Items**: Count of deltas the server has but client doesn't
+
+### Example Log Output
+
+```bash
+[BatchService] Receiving batch 1/7 from user 1, batchId: batch_1735315200000_a3f9e
+[BatchService] 📦 Processing batch 1/7 (batchId: batch_1735315200000_a3f9e)
+[BatchService] ✅ Applied batch 1/7 - Applied: 15432 items, Missing: 0 items
+
+[BatchService] Receiving batch 2/7 from user 1, batchId: batch_1735315200000_a3f9e
+[BatchService] 📦 Processing batch 2/7 (batchId: batch_1735315200000_a3f9e)
+[BatchService] ✅ Applied batch 2/7 - Applied: 18250 items, Missing: 0 items
+
+...
+
+[BatchService] Receiving batch 7/7 from user 1, batchId: batch_1735315200000_a3f9e
+[BatchService] 📦 Processing batch 7/7 (batchId: batch_1735315200000_a3f9e)
+[BatchService] ✅ Applied batch 7/7 - Applied: 8120 items, Missing: 0 items
+[BatchService] Completed batched sync from user 1, received 7 batches
+```
+
+### Monitoring Batch Operations
+
+**View Real-Time Logs:**
+
+```bash
+# Follow server logs with batch filtering
+docker compose logs server -f | grep -E "(batch|Batch|📦|✅)"
+
+# View last 50 batch-related entries
+docker compose logs server --tail=100 | grep -E "(batch|Batch)"
+```
+
+**Client-Side Debugging:**
+
+The client logs batch operations in the browser console:
+
+```javascript
+[Batch] Payload size: 7.23MB
+[Batch] Payload too large, batching...
+[Batch] Split into 7 batches
+[Batch 2025-12-27T17:30:15.123Z] 🚀 SENDING batch 1/7 (batchId: batch_...)
+[Batch 2025-12-27T17:30:15.456Z] ✅ RECEIVED response for batch 1/7
+```
+
+### CRDT Idempotency & Duplicate Handling
+
+**Important Design Principle:** The batching system does NOT implement explicit duplicate detection. Instead, it relies on CRDT's natural idempotency:
+
+- **First Application**: New deltas merged, state changes, `Applied: N items`
+- **Second Application** (duplicate): Same deltas recognized, no changes, `Applied: 0 items`
+
+This means:
+
+- If the same batch arrives twice, the second merge will show `Applied: 0 items`
+- State remains consistent (CRDTs guarantee eventual consistency)
+- No artificial blocking or error handling needed
+- Server logs will show both attempts, making duplicates visible
+
+**Why This Matters:**
+
+- Network retries won't corrupt state
+- React development mode double-rendering is harmless
+- Simplifies error recovery (just retry, don't track "already received")
+
+### Troubleshooting Batch Issues
+
+#### No Batches Appearing in Logs
+
+**Problem:** Server logs show no batch activity after sync operation.
+
+**Possible Causes:**
+
+1. Client not sending requests (check browser console for errors)
+2. Client guard preventing concurrent syncs (check for "Sync already in progress" warnings)
+3. Routing issue (requests not reaching server)
+
+**Debug Steps:**
+
+```bash
+# Check if requests reaching server at all
+docker compose logs server -f
+
+# Check client build timestamp
+docker compose ps client
+
+# Rebuild client if stale
+docker compose build client && docker compose up client -d
+```
+
+#### Batches Hanging / Not Completing
+
+**Problem:** Some batches received but sync never completes.
+
+**Indicators:**
+
+- Logs show batches 1-5 of 7, then stop
+- No "Completed batched sync" message
+- Client shows loading state indefinitely
+
+**Possible Causes:**
+
+1. Network timeout on large batch
+2. Server memory/processing limit
+3. Client waiting for response that failed to send
+
+**Debug Steps:**
+
+```bash
+# Check server memory/errors
+docker compose logs server --tail=200 | grep -E "(Error|error|Exception)"
+
+# Check if server is responding
+curl -X POST http://localhost/api/sync \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"deltas":{},"batchInfo":{"batchId":"","batchIndex":0,"totalBatches":1,"isComplete":true}}'
+```
+
+#### Duplicate Batches (Applied: 0 items)
+
+**Problem:** Logs show same batch processed twice with 0 items applied second time.
+
+**This is EXPECTED behavior** due to:
+
+- React StrictMode in development (double-renders)
+- Network retries
+- Race conditions in client code
+
+**When to Worry:**
+
+- ❌ If EVERY batch shows `Applied: 0 items` (nothing being synced)
+- ✅ If second attempt shows 0 but first shows normal count (CRDT working correctly)
+
+### Performance Considerations
+
+**Batch Size:**
+
+- Default: 4MB per batch (stays under 5MB server limit)
+- Configurable in `batchService.ts` via `maxBatchSize` option
+- Larger batches = fewer round trips, but higher memory usage
+
+**Session Cleanup:**
+
+- Batch sessions expire after 5 minutes (TTL)
+- Server runs cleanup every 5 minutes
+- Stale sessions automatically removed to prevent memory leaks
+
+**Trade-offs:**
+
+- Batching adds latency (sequential sends) but enables large sync operations
+- CRDT idempotency adds robustness but processes duplicates unnecessarily
+- Full state sync after restart trades bandwidth for simplicity
+
+## �📝 Development Notes
 
 ### Refactoring History
 
