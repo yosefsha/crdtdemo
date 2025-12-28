@@ -184,27 +184,16 @@ class Document {
      */
     getDeltasForReplica(replicaId) {
         const collectionDeltas = {};
-        const isNewReplica = !this.replicaTimestamps.has(replicaId);
-        // If this is a new replica and we have collections, return all deltas
-        if (isNewReplica && this.collections.size > 0) {
-            this.collections.forEach((collection, collectionId) => {
-                const deltas = collection.getAllDeltas();
-                if (deltas.length > 0) {
-                    collectionDeltas[collectionId] = deltas;
-                }
-            });
-        }
-        else {
-            // For existing replicas, return only incremental deltas
-            const replicaCollections = this.replicaTimestamps.get(replicaId) || new Map();
-            this.collections.forEach((collection, collectionId) => {
-                const replicaItems = replicaCollections.get(collectionId) || new Map();
-                const deltas = collection.getDeltasSince(replicaItems);
-                if (deltas.length > 0) {
-                    collectionDeltas[collectionId] = deltas;
-                }
-            });
-        }
+        // ALWAYS return only incremental deltas (never all deltas)
+        // This prevents massive 25MB payloads when server restarts
+        const replicaCollections = this.replicaTimestamps.get(replicaId) || new Map();
+        this.collections.forEach((collection, collectionId) => {
+            const replicaItems = replicaCollections.get(collectionId) || new Map();
+            const deltas = collection.getDeltasSince(replicaItems);
+            if (deltas.length > 0) {
+                collectionDeltas[collectionId] = deltas;
+            }
+        });
         if (Object.keys(collectionDeltas).length === 0) {
             return null;
         }

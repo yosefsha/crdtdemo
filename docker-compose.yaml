@@ -69,7 +69,8 @@ services:
       - JWT_SECRET=supersecret
       - POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/crdtdemo
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - app-network
 

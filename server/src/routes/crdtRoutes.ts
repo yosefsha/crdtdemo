@@ -5,6 +5,7 @@ import { crdtService } from "../services/crdtService";
 import { batchService } from "../services/batchService";
 import { DocumentDeltaPacket, RGBHEX } from "@crdtdemo/shared";
 import { getCurrentTime } from "../services/helpers";
+import { upsertUserCrdtDocument } from "../services/userCrdtDb";
 
 const router = Router();
 
@@ -148,6 +149,97 @@ router.post("/sync-from-other", verifyJWT, async (req, res) => {
     });
   } catch (err) {
     console.error("[/sync-from-other] Error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// New route: User B requests User A's deltas
+router.post("/get-from-other", verifyJWT, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const userId = user && (user.user_id || user.id || user.email || user.sub);
+    const { sourceUser } = req.body;
+
+    if (!userId) {
+      res.status(401).json({ error: "User ID not found in JWT" });
+      return;
+    }
+    if (!sourceUser) {
+      res.status(400).json({ error: "Missing sourceUser" });
+      return;
+    }
+
+    console.info(
+      `[/get-from-other] User ${userId} requesting deltas from ${sourceUser}`
+    );
+
+    // Get the source user's document
+    const sourceDoc = await crdtService.getOrCreateUserDocument(sourceUser);
+
+    // Get deltas that the requesting user (userId) hasn't seen yet
+    const deltaPacket = sourceDoc.getDeltasForAgent(userId);
+
+    if (!deltaPacket) {
+      console.info(
+        `[/get-from-other] No new deltas from ${sourceUser} for ${userId}`
+      );
+      res.json({ data: null });
+      return;
+    }
+
+    console.info(
+      `[/get-from-other] Returning deltas from ${sourceUser} to ${userId}`
+    );
+    res.json({ data: deltaPacket });
+  } catch (err) {
+    console.error("[/get-from-other] Error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Acknowledge that User B received User A's deltas
+router.post("/acknowledge-from-other", verifyJWT, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const userId = user && (user.user_id || user.id || user.email || user.sub);
+    const { sourceUser, mergeResult } = req.body;
+
+    if (!userId) {
+      res.status(401).json({ error: "User ID not found in JWT" });
+      return;
+    }
+    if (!sourceUser) {
+      res.status(400).json({ error: "Missing sourceUser" });
+      return;
+    }
+    if (!mergeResult) {
+      res.status(400).json({ error: "Missing mergeResult" });
+      return;
+    }
+
+    console.info(
+      `[/acknowledge-from-other] User ${userId} acknowledging receipt from ${sourceUser}`
+    );
+
+    // Get the source user's document and acknowledge that userId received the deltas
+    const sourceDoc = await crdtService.getOrCreateUserDocument(sourceUser);
+    sourceDoc.acknowledgeMerge(userId, mergeResult);
+
+    // Save the updated source document
+    const toSave = {
+      _id: sourceUser,
+      userId: sourceUser,
+      timestamp: new Date(),
+      crdt: sourceDoc.toDBJSON(),
+    };
+    await upsertUserCrdtDocument({ _id: sourceUser }, toSave);
+
+    console.info(
+      `[/acknowledge-from-other] Updated ${sourceUser}'s tracking for ${userId}`
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[/acknowledge-from-other] Error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

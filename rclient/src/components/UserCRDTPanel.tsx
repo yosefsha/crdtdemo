@@ -7,8 +7,6 @@ import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import { useUserAuthContext } from "./UserAuthContext";
 import config from "../config";
-import SyncOptions from "./SyncOptions";
-import { SyncOption } from "./SyncOptions";
 import type { AppUser } from "../types/app";
 import { io, Socket } from "socket.io-client";
 import { sendWithBatching } from "../services/batchService";
@@ -110,6 +108,11 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
         );
 
         pixelData.merge(data.deltas); // Merge deltas into pixelData
+        // Acknowledge that we received the server's data so vector clocks are updated
+        pixelData.handleMergeReplicaResult(
+          { applied: {}, missing: {} },
+          serverReplicaId
+        );
         console.info(
           `[${getTimestamp()}] [INFO] UserCRDTPanel: Merged deltas from server`
         );
@@ -130,9 +133,6 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
   // Prevent concurrent sync operations
   const syncInProgressRef = React.useRef(false);
 
-  // Store the list of users from the backend
-  // Add 'replica' to SyncOption type if you want to support intra-agent sync in the UI
-  const [syncOption, setSyncOption] = React.useState<SyncOption>("remote");
   type SyncType = "agent" | "replica";
   // Function to handle sync response from the server or peer
   function handleSyncResponse(
@@ -145,16 +145,43 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
       `[${getTimestamp()}] [DEBUG] [${syncType}] Handle sync response:`,
       resData
     );
+
+    // Log the current CRDT size BEFORE handling response
+    const sizeBefore = pixelData.getSize();
+    console.info(
+      `[${getTimestamp()}] [INFO] [${syncType}] CRDT size BEFORE handling response: ${sizeBefore} pixels`
+    );
+
     console.info(
       `[${getTimestamp()}] [INFO] [${syncType}] Merging deltas into local CRDT`
     );
     let res: PixelDeltaPacket | null = null;
     if (resData) {
+      // Log what we're about to acknowledge
+      const appliedCount = Object.values(resData.applied || {}).reduce(
+        (sum, arr) => sum + arr.length,
+        0
+      );
+      const missingCount = Object.values(resData.missing || {}).reduce(
+        (sum, arr) => sum + arr.length,
+        0
+      );
+      console.info(
+        `[${getTimestamp()}] [INFO] [${syncType}] Merge result contains: applied=${appliedCount}, missing=${missingCount}`
+      );
+
       if (syncType === "agent" && agentId) {
         res = pixelData.handleMergeAgentResult(resData, agentId); // agent-level merge
       } else if (syncType === "replica" && replicaId) {
         res = pixelData.handleMergeReplicaResult(resData, replicaId); // replica-level merge
       }
+
+      // Log the CRDT size AFTER handling response
+      const sizeAfter = pixelData.getSize();
+      console.info(
+        `[${getTimestamp()}] [INFO] [${syncType}] CRDT size AFTER handling response: ${sizeAfter} pixels (change: ${sizeAfter - sizeBefore})`
+      );
+
       setSharedState((s) => s + 1);
     }
     return res;
@@ -206,19 +233,11 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
           }
         );
 
-        const morePacket = handleSyncResponse(
-          "agent",
-          data.data,
-          undefined,
-          serverReplicaId
-        );
-        if (morePacket) {
-          syncInProgressRef.current = false; // Release lock before recursive call
-          handleRemoteSync(); // Recursively handle any additional deltas
-          return; // Let the recursive call handle the finally block
-        }
+        // Process the server's response and acknowledge the sync
+        handleSyncResponse("replica", data.data, undefined, serverReplicaId);
+
         console.info(
-          `[${getTimestamp()}] [INFO] [remote] Agent-level sync complete`
+          `[${getTimestamp()}] [INFO] [remote] Replica-level sync complete`
         );
       } catch (err) {
         console.error(
@@ -236,68 +255,83 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     await handleRemoteSync(); // Ensure we sync with server first
     if (token && otherUserId) {
       try {
-        const deltaPacket = pixelData.getDeltaForAgent(otherUserId);
+        console.info(
+          `[${getTimestamp()}] [INFO] [otherUser] Requesting deltas from ${otherUserId}`
+        );
 
-        // If no deltas to send, skip sync
+        // Request deltas FROM the other user
+        const response = await fetch(`${config.apiDomain}/get-from-other`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            sourceUser: otherUserId,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server returned ${response.status}`);
+        }
+
+        const resData = await response.json();
+        const deltaPacket = resData.data;
+
         if (!deltaPacket) {
           console.info(
-            `[${getTimestamp()}] [INFO] [otherUser] No new deltas to sync with other user`
+            `[${getTimestamp()}] [INFO] [otherUser] No new deltas from ${otherUserId}`
           );
           return;
         }
 
-        const reqData = {
-          deltas: deltaPacket,
-          targetUser: otherUserId,
-        };
+        console.info(
+          `[${getTimestamp()}] [INFO] [otherUser] Received deltas from ${otherUserId}, merging locally`
+        );
 
-        // Use batching service to automatically handle large payloads
-        const resData = await sendWithBatching(
-          `${config.apiDomain}/sync-from-other`,
-          "POST",
-          {
+        // Merge the other user's deltas into our local document
+        const mergeResult = pixelData.merge(deltaPacket);
+
+        // Acknowledge that we received and merged the deltas from the other user
+        pixelData.handleMergeAgentResult(mergeResult, otherUserId);
+
+        console.debug(`[${getTimestamp()}] [DEBUG] Merge result:`, {
+          appliedCount: Object.values(mergeResult.applied).reduce(
+            (sum, arr) => sum + arr.length,
+            0
+          ),
+          missingCount: Object.values(mergeResult.missing).reduce(
+            (sum, arr) => sum + arr.length,
+            0
+          ),
+        });
+
+        // Send acknowledgment back to server so it can update the source user's vector clocks
+        await fetch(`${config.apiDomain}/acknowledge-from-other`, {
+          method: "POST",
+          headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          reqData,
-          {
-            onBatchComplete: (response, batchIndex) => {
-              console.log(
-                `[${getTimestamp()}] [INFO] [otherUser] Batch ${batchIndex + 1} processed`
-              );
-            },
-          }
-        );
-
-        console.debug(
-          `[${getTimestamp()}] [DEBUG] Response from sync-from-other:`,
-          resData
-        );
-
-        // resData.data is DocumentMergeResult { applied, missing }
-        // The server already merged deltas into targetUser's document
-        // We just need to acknowledge on our side (client is sourceUser)
-        if (resData.data && resData.data.missing) {
-          // Server returned deltas that targetUser has but we don't - merge them
-          const missingPacket = {
-            documentId: userId, // Use userId as document ID
-            collectionDeltas: resData.data.missing,
-            fromAgent: otherUserId,
-            fromReplica: "",
-          };
-          pixelData.merge(missingPacket);
-          setSharedState((s) => s + 1);
-          console.debug(
-            `[${getTimestamp()}] [DEBUG] Merged missing deltas from ${otherUserId}`
-          );
-        }
+          body: JSON.stringify({
+            sourceUser: otherUserId,
+            mergeResult: mergeResult,
+          }),
+        });
 
         console.info(
-          `[${getTimestamp()}] [INFO] [otherUser] Agent-level sync to other user complete`
+          `[${getTimestamp()}] [INFO] [otherUser] Acknowledged receipt to server`
+        );
+
+        // Trigger re-render with new data
+        setSharedState((s) => s + 1);
+
+        console.info(
+          `[${getTimestamp()}] [INFO] [otherUser] Successfully synced from ${otherUserId}`
         );
       } catch (err) {
         console.error(
-          `[${getTimestamp()}] [ERROR] Failed to sync agent-level deltas to other user via server`,
+          `[${getTimestamp()}] [ERROR] Failed to sync from other user`,
           err
         );
       }
@@ -408,6 +442,15 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
         setSharedState((s) => s + 1);
         socket.disconnect();
         syncInProgressRef.current = false;
+
+        // Automatically sync enriched data to server
+        console.info(
+          `[${getTimestamp()}] [enrich] Auto-syncing enriched data to server...`
+        );
+        await handleRemoteSync();
+        console.info(
+          `[${getTimestamp()}] [enrich] Enriched data synced to server`
+        );
       }
     });
 
@@ -418,49 +461,105 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
     });
   }
 
-  function handleStateChange() {
-    console.info(
-      `[${getTimestamp()}] [INFO] UserCRDTPanel:${sliceKey} - Selected sync option:`,
-      syncOption
-    );
-
-    // No need to apply deltas locally; CanvasEditor already updates pixelData.
-    switch (syncOption) {
-      case "remote":
-        handleRemoteSync();
-        break;
-      case "enrich":
-        handleEnrichSync();
-        break;
-      case "otherUser":
-        handleOtherUserSync();
-        break;
-      default:
-        console.error(
-          `[${getTimestamp()}] [ERROR] Unknown sync option:`,
-          syncOption
-        );
-        break;
-    }
-    // BroadcastChannel logic removed as requested
-  }
-
   return (
     <>
       {userName ? <h2>{userName}&apos;s Page</h2> : null}
       <AuthPage />
-      <SyncOptions
-        name={`syncOption-${sliceKey}`}
-        value={syncOption}
-        onChange={(val: SyncOption) => setSyncOption(val)}
-      />
+
+      {/* Manual sync buttons */}
+      <div
+        style={{
+          margin: "20px 0",
+          padding: "15px",
+          backgroundColor: "#f5f5f5",
+          borderRadius: "8px",
+          display: "flex",
+          gap: "10px",
+          flexWrap: "wrap",
+        }}
+      >
+        <button
+          onClick={handleRemoteSync}
+          disabled={!token || syncInProgressRef.current}
+          style={{
+            padding: "10px 20px",
+            fontSize: "14px",
+            fontWeight: "bold",
+            backgroundColor: token ? "#4CAF50" : "#cccccc",
+            color: "white",
+            border: "none",
+            borderRadius: "5px",
+            cursor: token ? "pointer" : "not-allowed",
+            transition: "all 0.3s ease",
+          }}
+          onMouseOver={(e) => {
+            if (token) e.currentTarget.style.backgroundColor = "#45a049";
+          }}
+          onMouseOut={(e) => {
+            if (token) e.currentTarget.style.backgroundColor = "#4CAF50";
+          }}
+        >
+          🔄 Sync to Server
+        </button>
+
+        <button
+          onClick={handleOtherUserSync}
+          disabled={!token || !otherUserId || syncInProgressRef.current}
+          style={{
+            padding: "10px 20px",
+            fontSize: "14px",
+            fontWeight: "bold",
+            backgroundColor: token && otherUserId ? "#2196F3" : "#cccccc",
+            color: "white",
+            border: "none",
+            borderRadius: "5px",
+            cursor: token && otherUserId ? "pointer" : "not-allowed",
+            transition: "all 0.3s ease",
+          }}
+          onMouseOver={(e) => {
+            if (token && otherUserId)
+              e.currentTarget.style.backgroundColor = "#0b7dda";
+          }}
+          onMouseOut={(e) => {
+            if (token && otherUserId)
+              e.currentTarget.style.backgroundColor = "#2196F3";
+          }}
+        >
+          👥 Sync from Other User {otherUserId ? `(${otherUserId})` : ""}
+        </button>
+
+        <button
+          onClick={handleEnrichSync}
+          disabled={!token || syncInProgressRef.current}
+          style={{
+            padding: "10px 20px",
+            fontSize: "14px",
+            fontWeight: "bold",
+            backgroundColor: token ? "#FF9800" : "#cccccc",
+            color: "white",
+            border: "none",
+            borderRadius: "5px",
+            cursor: token ? "pointer" : "not-allowed",
+            transition: "all 0.3s ease",
+          }}
+          onMouseOver={(e) => {
+            if (token) e.currentTarget.style.backgroundColor = "#e68900";
+          }}
+          onMouseOut={(e) => {
+            if (token) e.currentTarget.style.backgroundColor = "#FF9800";
+          }}
+        >
+          ✨ Enrich Image
+        </button>
+      </div>
+
       <CanvasEditor
         ref={canvasEditorRef}
         width={CANVAS_WIDTH}
         height={CANVAS_HEIGHT}
         color={"000000ff"}
         pixelData={pixelData}
-        onStateChange={token ? handleStateChange : () => {}}
+        onStateChange={() => {}} // Removed auto-sync
         sharedState={sharedState}
         cursor="default"
       />

@@ -143,6 +143,12 @@ class CRDTService {
   ): Promise<DocumentMergeResult<RGBHEX>> {
     const userDocument = await this.getOrCreateUserDocument(userId);
     const merged = userDocument.merge(deltas);
+    
+    // Acknowledge that the client replica has received this data
+    // This updates server's tracking of what the client has seen
+    const clientReplicaId = `${userId}_client`;
+    userDocument.acknowledgeReplicaMerge(clientReplicaId, merged);
+    
     // Save to PostgreSQL after merge (upsert by userId)
     try {
       await upsertUserCrdtDocument(

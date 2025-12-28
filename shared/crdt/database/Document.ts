@@ -335,30 +335,19 @@ export class Document<T = any> {
    */
   getDeltasForReplica(replicaId: ReplicaId): DocumentDeltaPacket<T> | null {
     const collectionDeltas: Record<CollectionId, CollectionDelta<T>[]> = {};
-    const isNewReplica = !this.replicaTimestamps.has(replicaId);
+    
+    // ALWAYS return only incremental deltas (never all deltas)
+    // This prevents massive 25MB payloads when server restarts
+    const replicaCollections = this.replicaTimestamps.get(replicaId) || new Map();
 
-    // If this is a new replica and we have collections, return all deltas
-    if (isNewReplica && this.collections.size > 0) {
-      this.collections.forEach((collection, collectionId) => {
-        const deltas = collection.getAllDeltas();
-        if (deltas.length > 0) {
-          collectionDeltas[collectionId] = deltas;
-        }
-      });
-    } else {
-      // For existing replicas, return only incremental deltas
-      const replicaCollections =
-        this.replicaTimestamps.get(replicaId) || new Map();
+    this.collections.forEach((collection, collectionId) => {
+      const replicaItems = replicaCollections.get(collectionId) || new Map();
+      const deltas = collection.getDeltasSince(replicaItems);
 
-      this.collections.forEach((collection, collectionId) => {
-        const replicaItems = replicaCollections.get(collectionId) || new Map();
-        const deltas = collection.getDeltasSince(replicaItems);
-
-        if (deltas.length > 0) {
-          collectionDeltas[collectionId] = deltas;
-        }
-      });
-    }
+      if (deltas.length > 0) {
+        collectionDeltas[collectionId] = deltas;
+      }
+    });
 
     if (Object.keys(collectionDeltas).length === 0) {
       return null;

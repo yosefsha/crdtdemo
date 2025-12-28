@@ -83,6 +83,7 @@ export async function sendWithBatching(
   // Split payload into batches
   const batches = splitPayloadIntoBatches(payload, estimatedBatches);
 
+  const accumulatedApplied: Record<string, any[]> = {};
   console.log(`[Batch] Split into ${batches.length} batches`);
 
   // Send batches sequentially
@@ -118,13 +119,51 @@ export async function sendWithBatching(
 
     lastResponse = await response.json();
 
+    console.log(`[Batch] 📦 Response from batch ${i + 1}:`, lastResponse);
+    // Accumulate applied items from this batch
+    if (lastResponse?.data?.applied) {
+      console.log(
+        `[Batch] ✅ Batch ${i + 1} has applied data:`,
+        lastResponse.data.applied
+      );
+      Object.entries(lastResponse.data.applied).forEach(
+        ([collectionId, items]: [string, any]) => {
+          if (!accumulatedApplied[collectionId]) {
+            accumulatedApplied[collectionId] = [];
+          }
+          if (Array.isArray(items)) {
+            console.log(
+              `[Batch] 📥 Adding ${items.length} items to collection ${collectionId}`
+            );
+            accumulatedApplied[collectionId].push(...items);
+          }
+        }
+      );
+    } else {
+      console.log(`[Batch] ❌ Batch ${i + 1} has NO applied data`);
+    }
+
     if (options.onBatchComplete) {
       options.onBatchComplete(lastResponse, i);
     }
   }
 
   console.log(`[Batch] All batches sent successfully`);
-  return lastResponse;
+  console.log(`[Batch] 🎯 Final accumulatedApplied:`, accumulatedApplied);
+  console.log(
+    `[Batch] 📊 Total items:`,
+    Object.entries(accumulatedApplied)
+      .map(([k, v]) => `${k}: ${v.length}`)
+      .join(", ")
+  );
+  // Return combined response with accumulated applied items
+  return {
+    ...lastResponse,
+    data: {
+      applied: accumulatedApplied,
+      missing: {},
+    },
+  };
 }
 
 /**

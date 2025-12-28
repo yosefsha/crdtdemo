@@ -67,7 +67,7 @@ export class BatchService {
     if (batchInfo.totalBatches === 1) {
       console.info(`[BatchService] Single batch, processing immediately`);
       const mergeResult = await crdtService.syncUserDeltas(userId, deltas);
-      return { applied: mergeResult.applied, missing: {} };
+      return mergeResult;
     }
 
     // Track client batch session for multi-batch requests
@@ -196,7 +196,7 @@ export class BatchService {
       missingKeys: Object.keys(mergeResult.missing),
     });
 
-    // Persist the updated target document
+    // Persist the updated document properly
     const toSave = {
       _id: targetUser,
       userId: targetUser,
@@ -205,23 +205,6 @@ export class BatchService {
     };
     await upsertUserCrdtDocument({ _id: targetUser }, toSave);
     console.debug(`[BatchService] [DEBUG] Document saved for ${targetUser}`);
-
-    // Acknowledge on the SOURCE user's document that the target received the deltas
-    // This updates the source's tracking of what the target has seen
-    const sourceDoc = await crdtService.getOrCreateUserDocument(sourceUserId);
-    sourceDoc.acknowledgeMerge(targetUser, mergeResult);
-
-    // Persist the updated source document with acknowledgment
-    const sourceToSave = {
-      _id: sourceUserId,
-      userId: sourceUserId,
-      timestamp: new Date(),
-      crdt: sourceDoc.toDBJSON(),
-    };
-    await upsertUserCrdtDocument({ _id: sourceUserId }, sourceToSave);
-    console.debug(
-      `[BatchService] [DEBUG] Source document saved for ${sourceUserId} with acknowledgment for ${targetUser}`
-    );
 
     // Cleanup if all batches received
     if (

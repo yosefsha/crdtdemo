@@ -141,8 +141,23 @@ const CanvasEditor = forwardRef(function CanvasEditor(
       return;
     }
 
-    // Update pixel data
-    const delta = pixelData.set(PixelDocument.getKey(x, y), color);
+    // Determine CRDT resolution - check if we have high-res data
+    let crdtWidth = width;
+    let crdtHeight = height;
+
+    const hasHighResData =
+      pixelData.get(PixelDocument.getKey(width, height)) !== null;
+    if (hasHighResData) {
+      crdtWidth = 512;
+      crdtHeight = 512;
+    }
+
+    // Scale canvas coordinates to CRDT coordinates
+    const crdtX = Math.floor((x / width) * crdtWidth);
+    const crdtY = Math.floor((y / height) * crdtHeight);
+
+    // Update pixel data using CRDT coordinates
+    const delta = pixelData.set(PixelDocument.getKey(crdtX, crdtY), color);
     if (!delta) return;
     deltasRef.current.push(delta);
     drawOnCanvas(x, y, color || "ffffffff", ctx);
