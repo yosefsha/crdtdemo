@@ -335,10 +335,11 @@ export class Document<T = any> {
    */
   getDeltasForReplica(replicaId: ReplicaId): DocumentDeltaPacket<T> | null {
     const collectionDeltas: Record<CollectionId, CollectionDelta<T>[]> = {};
-    
+
     // ALWAYS return only incremental deltas (never all deltas)
     // This prevents massive 25MB payloads when server restarts
-    const replicaCollections = this.replicaTimestamps.get(replicaId) || new Map();
+    const replicaCollections =
+      this.replicaTimestamps.get(replicaId) || new Map();
 
     this.collections.forEach((collection, collectionId) => {
       const replicaItems = replicaCollections.get(collectionId) || new Map();
@@ -823,8 +824,12 @@ export class Document<T = any> {
     count: number
   ): CollectionDelta<T>[] {
     const allDeltas: CollectionDelta<T>[] = [];
+
+    // Avoid stack overflow with large arrays - use concat instead of spread
     Object.values(packet.collectionDeltas).forEach((deltas) => {
-      allDeltas.push(...deltas);
+      for (let i = 0; i < deltas.length; i++) {
+        allDeltas.push(deltas[i]);
+      }
     });
 
     // Simple random sampling

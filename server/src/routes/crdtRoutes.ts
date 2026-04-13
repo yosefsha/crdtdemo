@@ -176,10 +176,14 @@ router.post("/get-from-other", verifyJWT, async (req, res) => {
     // Get the source user's document
     const sourceDoc = await crdtService.getOrCreateUserDocument(sourceUser);
 
-    // Get deltas that the requesting user (userId) hasn't seen yet
-    const deltaPacket = sourceDoc.getDeltasForAgent(userId);
+    // Use batched sync to handle large delta packets
+    const result = await batchService.startBatchedAgentSync(
+      sourceUser,
+      userId,
+      { maxBytesPerBatch: 4_000_000 } // 4MB batches
+    );
 
-    if (!deltaPacket) {
+    if (!result) {
       console.info(
         `[/get-from-other] No new deltas from ${sourceUser} for ${userId}`
       );
@@ -188,11 +192,53 @@ router.post("/get-from-other", verifyJWT, async (req, res) => {
     }
 
     console.info(
-      `[/get-from-other] Returning deltas from ${sourceUser} to ${userId}`
+      `[/get-from-other] Returning ${result.batchInfo.totalBatches} batch(es) from ${sourceUser} to ${userId}`
     );
-    res.json({ data: deltaPacket });
+    res.json({ data: result });
   } catch (err) {
     console.error("[/get-from-other] Error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get next batch for an ongoing sync session
+router.post("/get-from-other/next-batch", verifyJWT, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const userId = user && (user.user_id || user.id || user.email || user.sub);
+    const { sourceUser, batchId } = req.body;
+
+    if (!userId) {
+      res.status(401).json({ error: "User ID not found in JWT" });
+      return;
+    }
+    if (!sourceUser || !batchId) {
+      res.status(400).json({ error: "Missing sourceUser or batchId" });
+      return;
+    }
+
+    console.info(
+      `[/get-from-other/next-batch] User ${userId} requesting next batch ${batchId} from ${sourceUser}`
+    );
+
+    const result = await batchService.getNextBatch(sourceUser, batchId);
+
+    if (!result) {
+      console.warn(
+        `[/get-from-other/next-batch] No batch found for ${batchId}`
+      );
+      res.status(404).json({ error: "Batch not found or expired" });
+      return;
+    }
+
+    console.info(
+      `[/get-from-other/next-batch] Returning batch ${
+        result.batchInfo.batchIndex + 1
+      }/${result.batchInfo.totalBatches}`
+    );
+    res.json({ data: result });
+  } catch (err) {
+    console.error("[/get-from-other/next-batch] Error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

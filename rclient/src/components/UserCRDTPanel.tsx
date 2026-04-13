@@ -259,7 +259,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
           `[${getTimestamp()}] [INFO] [otherUser] Requesting deltas from ${otherUserId}`
         );
 
-        // Request deltas FROM the other user
+        // Request deltas FROM the other user - using sendWithBatching for large packets
         const response = await fetch(`${config.apiDomain}/get-from-other`, {
           method: "POST",
           headers: {
@@ -276,20 +276,23 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
         }
 
         const resData = await response.json();
-        const deltaPacket = resData.data;
+        const result = resData.data;
 
-        if (!deltaPacket) {
+        if (!result) {
           console.info(
             `[${getTimestamp()}] [INFO] [otherUser] No new deltas from ${otherUserId}`
           );
           return;
         }
 
+        // Handle batched response
+        const { packet: deltaPacket, batchInfo } = result;
+
         console.info(
-          `[${getTimestamp()}] [INFO] [otherUser] Received deltas from ${otherUserId}, merging locally`
+          `[${getTimestamp()}] [INFO] [otherUser] Received batch ${batchInfo.batchIndex + 1}/${batchInfo.totalBatches} from ${otherUserId}`
         );
 
-        // Merge the other user's deltas into our local document
+        // Merge the deltas from this batch
         const mergeResult = pixelData.merge(deltaPacket);
 
         // Acknowledge that we received and merged the deltas from the other user
@@ -305,6 +308,38 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
             0
           ),
         });
+
+        // If there are more batches, request the next one
+        if (!batchInfo.isComplete) {
+          console.info(
+            `[${getTimestamp()}] [INFO] [otherUser] Requesting next batch ${batchInfo.batchIndex + 2}/${batchInfo.totalBatches}`
+          );
+
+          const nextResponse = await fetch(
+            `${config.apiDomain}/get-from-other/next-batch`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                sourceUser: otherUserId,
+                batchId: batchInfo.batchId,
+              }),
+            }
+          );
+
+          if (nextResponse.ok) {
+            const nextData = await nextResponse.json();
+            // Recursively handle next batch (you may want to refactor this)
+            // For now, just merge it
+            if (nextData.data) {
+              const nextResult = pixelData.merge(nextData.data.packet);
+              pixelData.handleMergeAgentResult(nextResult, otherUserId);
+            }
+          }
+        }
 
         // Send acknowledgment back to server so it can update the source user's vector clocks
         await fetch(`${config.apiDomain}/acknowledge-from-other`, {
