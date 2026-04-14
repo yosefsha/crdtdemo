@@ -21,15 +21,15 @@ function getDefaultApiDomain(env: string): string {
   }
   switch (env) {
     case "prod":
-      return "https://api.yossidemo.click";
+      return "https://crdtapi.yossidemo.click";
     case "dev":
-      return "https://api.yossidemo.click";
+      return "https://crdtapi.yossidemo.click";
     case "docker":
       return "/api";
     case "local":
       return "http://localhost/api";
     default:
-      return "https://api.yossidemo.click";
+      return "https://crdtapi.yossidemo.click";
   }
 }
 

@@ -3,7 +3,6 @@ from aws_cdk import aws_ec2 as ec2
 from aws_cdk import aws_ecs as ecs
 from aws_cdk import aws_elasticloadbalancingv2 as elbv2
 from aws_cdk import aws_ecr as ecr
-from aws_cdk import aws_iam as iam
 from aws_cdk import aws_logs as logs
 from aws_cdk import aws_certificatemanager as acm
 from aws_cdk import aws_route53 as route53
@@ -14,9 +13,10 @@ from stacks.network_stack import NetworkStack
 from stacks.data_stack import DataStack
 from stacks.messaging_stack import MessagingStack
 
-# Existing ACM certificate (covers *.yossidemo.click and yossidemo.click)
-ACM_CERT_ARN = "arn:aws:acm:us-east-1:963352896991:certificate/6c4adc69-fe9a-4f1c-91c6-1a6d98e49f21"
-ECR_ACCOUNT = "963352896991.dkr.ecr.us-east-1.amazonaws.com"
+HOSTED_ZONE_ID = "Z03443351PW97OGJ1VSIF"
+HOSTED_ZONE_NAME = "yossidemo.click"
+API_SUBDOMAIN = "crdtapi"                          # crdtapi.yossidemo.click
+FRONTEND_ORIGIN = "https://crdt.yossidemo.click"
 
 
 class ComputeStack(Stack):
@@ -30,6 +30,19 @@ class ComputeStack(Stack):
         **kwargs,
     ) -> None:
         super().__init__(scope, id, **kwargs)
+
+        zone = route53.HostedZone.from_hosted_zone_attributes(
+            self, "Zone",
+            hosted_zone_id=HOSTED_ZONE_ID,
+            zone_name=HOSTED_ZONE_NAME,
+        )
+
+        # Create cert with DNS validation — covers crdtapi.yossidemo.click
+        certificate = acm.Certificate(
+            self, "ApiCert",
+            domain_name=f"{API_SUBDOMAIN}.{HOSTED_ZONE_NAME}",
+            validation=acm.CertificateValidation.from_dns(zone),
+        )
 
         # ECS Cluster
         self.cluster = ecs.Cluster(
@@ -50,8 +63,6 @@ class ComputeStack(Stack):
             load_balancer_name="crdt-demo-alb",
         )
 
-        certificate = acm.Certificate.from_certificate_arn(self, "Cert", ACM_CERT_ARN)
-
         # HTTP → HTTPS redirect
         alb.add_listener(
             "HttpListener",
@@ -61,7 +72,7 @@ class ComputeStack(Stack):
             ),
         )
 
-        # HTTPS listener — default returns 404 (only matched paths are forwarded)
+        # HTTPS listener
         https_listener = alb.add_listener(
             "HttpsListener",
             port=443,
@@ -78,7 +89,6 @@ class ComputeStack(Stack):
         server_task = ecs.FargateTaskDefinition(
             self, "ServerTask", cpu=512, memory_limit_mib=1024
         )
-        # Grant server task permissions
         messaging.enrich_requests_queue.grant_send_messages(server_task.task_role)
         data.jwt_secret.grant_read(server_task.task_role)
         data.db_credentials.grant_read(server_task.task_role)
@@ -99,7 +109,7 @@ class ComputeStack(Stack):
             ),
             environment={
                 "PORT": "5001",
-                "CLIENT_ORIGIN": "https://yossidemo.click",
+                "CLIENT_ORIGIN": FRONTEND_ORIGIN,
                 "SQS_REQUEST_QUEUE_URL": messaging.enrich_requests_queue.queue_url,
                 "AWS_REGION": "us-east-1",
             },
@@ -131,10 +141,10 @@ class ComputeStack(Stack):
             security_groups=[network.server_sg],
             vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
             service_name="crdt-server",
-            enable_execute_command=True,  # allows `aws ecs execute-command` for debugging
+            enable_execute_command=True,
         )
 
-        # Server target group — sticky sessions required for Socket.IO long-poll fallback
+        # Sticky sessions for Socket.IO long-poll fallback
         server_tg = elbv2.ApplicationTargetGroup(
             self,
             "ServerTg",
@@ -152,7 +162,7 @@ class ComputeStack(Stack):
             target_group_name="crdt-server-tg",
         )
 
-        # Path-based routing — mirrors Traefik labels in docker-compose.yaml
+        # Path-based routing — mirrors Traefik labels
         https_listener.add_action(
             "ApiRoute",
             priority=10,
@@ -242,16 +252,15 @@ class ComputeStack(Stack):
 
         # ── DNS ───────────────────────────────────────────────────────────────
 
-        zone = route53.HostedZone.from_lookup(self, "Zone", domain_name="yossidemo.click")
         route53.ARecord(
             self,
             "ApiDns",
             zone=zone,
-            record_name="api",
+            record_name=API_SUBDOMAIN,
             target=route53.RecordTarget.from_alias(route53_targets.LoadBalancerTarget(alb)),
         )
 
-        # Export ALB DNS so LambdaStack can build the internal callback URL
         self.alb_dns = alb.load_balancer_dns_name
 
         CfnOutput(self, "AlbDns", value=alb.load_balancer_dns_name, description="ALB DNS name")
+        CfnOutput(self, "ApiUrl", value=f"https://{API_SUBDOMAIN}.{HOSTED_ZONE_NAME}", description="API URL")
