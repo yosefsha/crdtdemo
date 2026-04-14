@@ -1,0 +1,11 @@
+{
+  "name": "crdt-enrich-worker",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Lambda function for CRDT demo image enrichment via Replicate SDXL API",
+  "main": "index.js",
+  "dependencies": {
+    "replicate": "^1.0.1",
+    "@aws-sdk/client-secrets-manager": "^3.0.0"
+  }
+}
