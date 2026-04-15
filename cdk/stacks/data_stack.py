@@ -59,7 +59,7 @@ class DataStack(Stack):
             self,
             "CrdtDb",
             engine=rds.DatabaseInstanceEngine.postgres(
-                version=rds.PostgresEngineVersion.VER_15_4
+                version=rds.PostgresEngineVersion.of("15.17", "15")
             ),
             instance_type=ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
             vpc=network.vpc,
