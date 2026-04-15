@@ -23,7 +23,7 @@ ecr_login() {
 
 build_push_server() {
   log "Building server image..."
-  docker build -t "$ECR_BASE/crdtdemo/node:latest" "$REPO_ROOT/server"
+  docker buildx build --platform linux/amd64 --load -t "$ECR_BASE/crdtdemo/node:latest" -f "$REPO_ROOT/server/Dockerfile" "$REPO_ROOT"
   log "Pushing server image..."
   docker push "$ECR_BASE/crdtdemo/node:latest"
   log "Server image pushed: $ECR_BASE/crdtdemo/node:latest"
@@ -31,7 +31,7 @@ build_push_server() {
 
 build_push_auth() {
   log "Building auth image..."
-  docker build -t "$ECR_BASE/crdtdemo/auth:latest" "$REPO_ROOT/auth"
+  docker buildx build --platform linux/amd64 --load -t "$ECR_BASE/crdtdemo/auth:latest" -f "$REPO_ROOT/auth/Dockerfile" "$REPO_ROOT/auth"
   log "Pushing auth image..."
   docker push "$ECR_BASE/crdtdemo/auth:latest"
   log "Auth image pushed: $ECR_BASE/crdtdemo/auth:latest"
