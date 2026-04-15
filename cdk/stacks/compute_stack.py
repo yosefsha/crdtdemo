@@ -112,12 +112,14 @@ class ComputeStack(Stack):
                 "CLIENT_ORIGIN": FRONTEND_ORIGIN,
                 "SQS_REQUEST_QUEUE_URL": messaging.enrich_requests_queue.queue_url,
                 "AWS_REGION": "us-east-1",
+                "DB_NAME": "crdtdemo",
             },
             secrets={
                 "JWT_SECRET": ecs.Secret.from_secrets_manager(data.jwt_secret),
-                "POSTGRES_URL": ecs.Secret.from_secrets_manager(
-                    data.db_credentials, field="dbInstanceIdentifier"
-                ),
+                "DB_HOST": ecs.Secret.from_secrets_manager(data.db_credentials, field="host"),
+                "DB_PORT": ecs.Secret.from_secrets_manager(data.db_credentials, field="port"),
+                "DB_USER": ecs.Secret.from_secrets_manager(data.db_credentials, field="username"),
+                "DB_PASSWORD": ecs.Secret.from_secrets_manager(data.db_credentials, field="password"),
                 "INTERNAL_CALLBACK_SECRET": ecs.Secret.from_secrets_manager(
                     data.internal_callback_secret
                 ),
@@ -199,11 +201,15 @@ class ComputeStack(Stack):
             logging=ecs.LogDrivers.aws_logs(
                 stream_prefix="auth", log_group=auth_log_group
             ),
+            environment={
+                "DB_NAME": "crdtdemo",
+            },
             secrets={
                 "JWT_SECRET": ecs.Secret.from_secrets_manager(data.jwt_secret),
-                "POSTGRES_URL": ecs.Secret.from_secrets_manager(
-                    data.db_credentials, field="dbInstanceIdentifier"
-                ),
+                "DB_HOST": ecs.Secret.from_secrets_manager(data.db_credentials, field="host"),
+                "DB_PORT": ecs.Secret.from_secrets_manager(data.db_credentials, field="port"),
+                "DB_USER": ecs.Secret.from_secrets_manager(data.db_credentials, field="username"),
+                "DB_PASSWORD": ecs.Secret.from_secrets_manager(data.db_credentials, field="password"),
             },
             health_check=ecs.HealthCheck(
                 command=["CMD-SHELL", "wget -qO- http://localhost:4000/auth/health || exit 1"],
