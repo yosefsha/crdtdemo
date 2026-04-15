@@ -123,7 +123,7 @@ class ComputeStack(Stack):
                 ),
             },
             health_check=ecs.HealthCheck(
-                command=["CMD-SHELL", "curl -f http://localhost:5001/api/health || exit 1"],
+                command=["CMD-SHELL", "wget -qO- http://localhost:5001/api/health || exit 1"],
                 interval=Duration.seconds(30),
                 timeout=Duration.seconds(5),
                 retries=3,
@@ -206,7 +206,7 @@ class ComputeStack(Stack):
                 ),
             },
             health_check=ecs.HealthCheck(
-                command=["CMD-SHELL", "curl -f http://localhost:4000/auth/health || exit 1"],
+                command=["CMD-SHELL", "wget -qO- http://localhost:4000/auth/health || exit 1"],
                 interval=Duration.seconds(30),
                 timeout=Duration.seconds(5),
                 retries=3,
