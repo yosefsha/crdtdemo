@@ -151,3 +151,4 @@ Both server and client use `@crdtdemo/shared` but resolve differently:
 
 - [ADR-001: Don't Persist Replica Timestamps](docs/adr-001-replica-timestamps.md)
 - [Batching System](docs/batching.md)
+- [AWS Deployment Status & Next Steps](docs/aws-deploy-status.md)

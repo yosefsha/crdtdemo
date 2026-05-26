@@ -12,7 +12,11 @@ app = Flask(__name__)
 # Environment variables
 JWT_SECRET = os.environ.get("JWT_SECRET", "defaultsecret")
 JWT_EXP_DELTA_SECONDS = 3600
-POSTGRES_URL = os.environ.get("POSTGRES_URL", "postgresql://postgres:postgres@localhost:5432/crdtdemo")
+_db_host = os.environ.get("DB_HOST")
+POSTGRES_URL = os.environ.get("POSTGRES_URL") or (
+    f"postgresql://{os.environ.get('DB_USER')}:{os.environ.get('DB_PASSWORD')}@{_db_host}:{os.environ.get('DB_PORT', '5432')}/{os.environ.get('DB_NAME', 'crdtdemo')}"
+    if _db_host else "postgresql://postgres:postgres@localhost:5432/crdtdemo"
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
@@ -148,6 +152,10 @@ def verify():
     except jwt.InvalidTokenError:
         logger.warning("Token verification failed: Invalid token")
         return jsonify({"valid": False, "error": "Invalid token"}), 401
+
+@app.route("/auth/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
     host = "0.0.0.0"

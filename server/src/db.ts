@@ -6,7 +6,9 @@ import { Pool } from "pg";
 
 const postgresUrl =
   process.env.POSTGRES_URL ||
-  "postgresql://postgres:postgres@localhost:5432/crdtdemo";
+  (process.env.DB_HOST
+    ? `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT || "5432"}/${process.env.DB_NAME || "crdtdemo"}`
+    : "postgresql://postgres:postgres@localhost:5432/crdtdemo");
 
 const pool = new Pool({
   connectionString: postgresUrl,

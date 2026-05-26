@@ -1,0 +1,24 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: anthropics/claude-code-action@v1.0.2
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Review this pull request. Focus on:
+            - TypeScript type errors or unsafe casts
+            - CRDT correctness (timestamp ordering, merge idempotency)
+            - Logic bugs in shared/crdt/database/ or server sync endpoints
+            - Missing error handling at system boundaries
+            Post a concise comment with findings grouped by severity (blocking / suggestion). If nothing significant is found, say so briefly.

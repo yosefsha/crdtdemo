@@ -8,9 +8,14 @@ import DbService from "./dbService";
 // - Uses the POSTGRES_URL environment variable or defaults to localhost.
 // - Database: crdtdemo
 // - Table: user_crdt_data
-export const userCrdtDb = new DbService(
+const pgUrl =
   process.env.POSTGRES_URL ||
-    "postgresql://postgres:postgres@localhost:5432/crdtdemo",
+  (process.env.DB_HOST
+    ? `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT || "5432"}/${process.env.DB_NAME || "crdtdemo"}`
+    : "postgresql://postgres:postgres@localhost:5432/crdtdemo");
+
+export const userCrdtDb = new DbService(
+  pgUrl,
   "crdtdemo",
   "user_crdt_data"
 );

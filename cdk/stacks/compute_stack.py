@@ -1,0 +1,272 @@
+from aws_cdk import Stack, Duration, CfnOutput
+from aws_cdk import aws_ec2 as ec2
+from aws_cdk import aws_ecs as ecs
+from aws_cdk import aws_elasticloadbalancingv2 as elbv2
+from aws_cdk import aws_ecr as ecr
+from aws_cdk import aws_logs as logs
+from aws_cdk import aws_certificatemanager as acm
+from aws_cdk import aws_route53 as route53
+from aws_cdk import aws_route53_targets as route53_targets
+from constructs import Construct
+
+from stacks.network_stack import NetworkStack
+from stacks.data_stack import DataStack
+from stacks.messaging_stack import MessagingStack
+
+HOSTED_ZONE_ID = "Z03443351PW97OGJ1VSIF"
+HOSTED_ZONE_NAME = "yossidemo.click"
+API_SUBDOMAIN = "crdtapi"                          # crdtapi.yossidemo.click
+FRONTEND_ORIGIN = "https://crdt.yossidemo.click"
+
+
+class ComputeStack(Stack):
+    def __init__(
+        self,
+        scope: Construct,
+        id: str,
+        network: NetworkStack,
+        data: DataStack,
+        messaging: MessagingStack,
+        **kwargs,
+    ) -> None:
+        super().__init__(scope, id, **kwargs)
+
+        zone = route53.HostedZone.from_hosted_zone_attributes(
+            self, "Zone",
+            hosted_zone_id=HOSTED_ZONE_ID,
+            zone_name=HOSTED_ZONE_NAME,
+        )
+
+        # Create cert with DNS validation — covers crdtapi.yossidemo.click
+        certificate = acm.Certificate(
+            self, "ApiCert",
+            domain_name=f"{API_SUBDOMAIN}.{HOSTED_ZONE_NAME}",
+            validation=acm.CertificateValidation.from_dns(zone),
+        )
+
+        # ECS Cluster
+        self.cluster = ecs.Cluster(
+            self,
+            "CrdtCluster",
+            vpc=network.vpc,
+            cluster_name="crdt-demo",
+            container_insights_v2=ecs.ContainerInsights.ENABLED,
+        )
+
+        # ALB
+        alb = elbv2.ApplicationLoadBalancer(
+            self,
+            "Alb",
+            vpc=network.vpc,
+            internet_facing=True,
+            security_group=network.alb_sg,
+            load_balancer_name="crdt-demo-alb",
+        )
+
+        # HTTP → HTTPS redirect
+        alb.add_listener(
+            "HttpListener",
+            port=80,
+            default_action=elbv2.ListenerAction.redirect(
+                protocol="HTTPS", port="443", permanent=True
+            ),
+        )
+
+        # HTTPS listener
+        https_listener = alb.add_listener(
+            "HttpsListener",
+            port=443,
+            certificates=[certificate],
+            default_action=elbv2.ListenerAction.fixed_response(
+                404, content_type="text/plain", message_body="Not found"
+            ),
+        )
+
+        # ── SERVER FARGATE SERVICE ────────────────────────────────────────────
+
+        server_repo = ecr.Repository.from_repository_name(self, "ServerRepo", "crdtdemo/node")
+
+        server_task = ecs.FargateTaskDefinition(
+            self, "ServerTask", cpu=512, memory_limit_mib=1024
+        )
+        messaging.enrich_requests_queue.grant_send_messages(server_task.task_role)
+        data.jwt_secret.grant_read(server_task.task_role)
+        data.db_credentials.grant_read(server_task.task_role)
+        data.internal_callback_secret.grant_read(server_task.task_role)
+
+        server_log_group = logs.LogGroup(
+            self,
+            "ServerLogs",
+            log_group_name="/ecs/crdt-server",
+            retention=logs.RetentionDays.ONE_WEEK,
+        )
+
+        server_container = server_task.add_container(
+            "ServerContainer",
+            image=ecs.ContainerImage.from_ecr_repository(server_repo, tag="latest"),
+            logging=ecs.LogDrivers.aws_logs(
+                stream_prefix="server", log_group=server_log_group
+            ),
+            environment={
+                "PORT": "5001",
+                "CLIENT_ORIGIN": FRONTEND_ORIGIN,
+                "SQS_REQUEST_QUEUE_URL": messaging.enrich_requests_queue.queue_url,
+                "AWS_REGION": "us-east-1",
+                "DB_NAME": "crdtdemo",
+            },
+            secrets={
+                "JWT_SECRET": ecs.Secret.from_secrets_manager(data.jwt_secret),
+                "DB_HOST": ecs.Secret.from_secrets_manager(data.db_credentials, field="host"),
+                "DB_PORT": ecs.Secret.from_secrets_manager(data.db_credentials, field="port"),
+                "DB_USER": ecs.Secret.from_secrets_manager(data.db_credentials, field="username"),
+                "DB_PASSWORD": ecs.Secret.from_secrets_manager(data.db_credentials, field="password"),
+                "INTERNAL_CALLBACK_SECRET": ecs.Secret.from_secrets_manager(
+                    data.internal_callback_secret
+                ),
+            },
+            health_check=ecs.HealthCheck(
+                command=["CMD-SHELL", "wget -qO- http://localhost:5001/api/health || exit 1"],
+                interval=Duration.seconds(30),
+                timeout=Duration.seconds(5),
+                retries=3,
+                start_period=Duration.seconds(60),
+            ),
+        )
+        server_container.add_port_mappings(ecs.PortMapping(container_port=5001))
+
+        server_service = ecs.FargateService(
+            self,
+            "ServerService",
+            cluster=self.cluster,
+            task_definition=server_task,
+            desired_count=1,
+            security_groups=[network.server_sg],
+            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
+            service_name="crdt-server",
+            enable_execute_command=True,
+        )
+
+        # Sticky sessions for Socket.IO long-poll fallback
+        server_tg = elbv2.ApplicationTargetGroup(
+            self,
+            "ServerTg",
+            vpc=network.vpc,
+            port=5001,
+            protocol=elbv2.ApplicationProtocol.HTTP,
+            targets=[server_service],
+            health_check=elbv2.HealthCheck(
+                path="/api/health",
+                interval=Duration.seconds(30),
+                timeout=Duration.seconds(5),
+                healthy_http_codes="200",
+            ),
+            stickiness_cookie_duration=Duration.hours(1),
+            target_group_name="crdt-server-tg",
+        )
+
+        # Path-based routing — mirrors Traefik labels
+        https_listener.add_action(
+            "ApiRoute",
+            priority=10,
+            conditions=[elbv2.ListenerCondition.path_patterns(["/api/*"])],
+            action=elbv2.ListenerAction.forward([server_tg]),
+        )
+        https_listener.add_action(
+            "SocketRoute",
+            priority=11,
+            conditions=[elbv2.ListenerCondition.path_patterns(["/socket/*", "/socket.io/*"])],
+            action=elbv2.ListenerAction.forward([server_tg]),
+        )
+
+        # ── AUTH FARGATE SERVICE ──────────────────────────────────────────────
+
+        auth_repo = ecr.Repository.from_repository_name(self, "AuthRepo", "crdtdemo/auth")
+
+        auth_task = ecs.FargateTaskDefinition(
+            self, "AuthTask", cpu=256, memory_limit_mib=512
+        )
+        data.jwt_secret.grant_read(auth_task.task_role)
+        data.db_credentials.grant_read(auth_task.task_role)
+
+        auth_log_group = logs.LogGroup(
+            self,
+            "AuthLogs",
+            log_group_name="/ecs/crdt-auth",
+            retention=logs.RetentionDays.ONE_WEEK,
+        )
+
+        auth_container = auth_task.add_container(
+            "AuthContainer",
+            image=ecs.ContainerImage.from_ecr_repository(auth_repo, tag="latest"),
+            logging=ecs.LogDrivers.aws_logs(
+                stream_prefix="auth", log_group=auth_log_group
+            ),
+            environment={
+                "DB_NAME": "crdtdemo",
+            },
+            secrets={
+                "JWT_SECRET": ecs.Secret.from_secrets_manager(data.jwt_secret),
+                "DB_HOST": ecs.Secret.from_secrets_manager(data.db_credentials, field="host"),
+                "DB_PORT": ecs.Secret.from_secrets_manager(data.db_credentials, field="port"),
+                "DB_USER": ecs.Secret.from_secrets_manager(data.db_credentials, field="username"),
+                "DB_PASSWORD": ecs.Secret.from_secrets_manager(data.db_credentials, field="password"),
+            },
+            health_check=ecs.HealthCheck(
+                command=["CMD-SHELL", "wget -qO- http://localhost:4000/auth/health || exit 1"],
+                interval=Duration.seconds(30),
+                timeout=Duration.seconds(5),
+                retries=3,
+                start_period=Duration.seconds(60),
+            ),
+        )
+        auth_container.add_port_mappings(ecs.PortMapping(container_port=4000))
+
+        auth_service = ecs.FargateService(
+            self,
+            "AuthService",
+            cluster=self.cluster,
+            task_definition=auth_task,
+            desired_count=1,
+            security_groups=[network.auth_sg],
+            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
+            service_name="crdt-auth",
+            enable_execute_command=True,
+        )
+
+        auth_tg = elbv2.ApplicationTargetGroup(
+            self,
+            "AuthTg",
+            vpc=network.vpc,
+            port=4000,
+            protocol=elbv2.ApplicationProtocol.HTTP,
+            targets=[auth_service],
+            health_check=elbv2.HealthCheck(
+                path="/auth/health",
+                interval=Duration.seconds(30),
+                timeout=Duration.seconds(5),
+                healthy_http_codes="200",
+            ),
+            target_group_name="crdt-auth-tg",
+        )
+
+        https_listener.add_action(
+            "AuthRoute",
+            priority=20,
+            conditions=[elbv2.ListenerCondition.path_patterns(["/auth/*"])],
+            action=elbv2.ListenerAction.forward([auth_tg]),
+        )
+
+        # ── DNS ───────────────────────────────────────────────────────────────
+
+        route53.ARecord(
+            self,
+            "ApiDns",
+            zone=zone,
+            record_name=API_SUBDOMAIN,
+            target=route53.RecordTarget.from_alias(route53_targets.LoadBalancerTarget(alb)),
+        )
+
+        self.alb_dns = alb.load_balancer_dns_name
+
+        CfnOutput(self, "AlbDns", value=alb.load_balancer_dns_name, description="ALB DNS name")
+        CfnOutput(self, "ApiUrl", value=f"https://{API_SUBDOMAIN}.{HOSTED_ZONE_NAME}", description="API URL")

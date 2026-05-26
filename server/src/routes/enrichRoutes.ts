@@ -1,54 +1,65 @@
-import { Router, Request, Response, NextFunction } from "express";
-// Update the import path if needed, or create the middleware/auth.ts file with verifyJWT exported
+import { Router, Request, Response } from "express";
 import { verifyJWT } from "../routes/verifyJWT";
 import { getCurrentTime } from "../services/helpers";
-import amqp from "amqplib";
+import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
+import { emitEnrichmentResult } from "../services/socket";
 
 const router = Router();
 import chunkAssembler from "../services/chunkService";
 
-// Function to handle enrichment through RabbitMQ
-async function enrichImage(data: {
+const sqsClient = new SQSClient({ region: process.env.AWS_REGION || "us-east-1" });
+
+// Publish enrichment request to SQS (replaces RabbitMQ publish)
+async function publishEnrichRequest(data: {
   base64: string;
   requestId: string;
   socketId: string;
 }) {
   const { base64, requestId, socketId } = data;
 
-  try {
-    // Connect to RabbitMQ and publish request
-    const connection = await amqp.connect(
-      process.env.RABBIT_URL || "amqp://rabbit-mq"
-    );
-    const channel = await connection.createChannel();
-
-    await channel.assertQueue("enrich_requests", { durable: true });
-
-    const message = JSON.stringify({
-      requestId,
-      base64,
-      socketId,
-    });
-
-    channel.sendToQueue("enrich_requests", Buffer.from(message), {
-      persistent: true,
-    });
-
-    await channel.close();
-    await connection.close();
-
-    console.log(
-      `[${getCurrentTime()}] [INFO][enrich] Published enrichment request ${requestId} to queue`
-    );
-    return { status: "OK", requestId };
-  } catch (error) {
-    console.error(
-      `[${getCurrentTime()}] [ERROR][enrich] Error publishing to RabbitMQ:`,
-      error
-    );
-    throw new Error("Failed to submit enrichment request");
+  const queueUrl = process.env.SQS_REQUEST_QUEUE_URL;
+  if (!queueUrl) {
+    throw new Error("SQS_REQUEST_QUEUE_URL environment variable is not set");
   }
+
+  await sqsClient.send(
+    new SendMessageCommand({
+      QueueUrl: queueUrl,
+      MessageBody: JSON.stringify({ requestId, base64, socketId }),
+    })
+  );
+
+  console.log(
+    `[${getCurrentTime()}] [INFO][enrich] Published enrichment request ${requestId} to SQS`
+  );
+  return { status: "OK", requestId };
 }
+
+// Internal callback — called by Lambda after Replicate API returns result.
+// Secured by X-Internal-Token header check.
+router.post("/enrich-internal-callback", (req: Request, res: Response) => {
+  const token = req.headers["x-internal-token"];
+  const expected = process.env.INTERNAL_CALLBACK_SECRET;
+
+  if (!expected || token !== expected) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const { requestId, enrichedData, socketId } = req.body;
+
+  if (!requestId || !enrichedData) {
+    res.status(400).json({ error: "Missing requestId or enrichedData" });
+    return;
+  }
+
+  console.log(
+    `[${getCurrentTime()}] [INFO][enrich] Received callback for requestId: ${requestId}, emitting via Socket.IO`
+  );
+
+  emitEnrichmentResult(requestId, enrichedData, socketId);
+  res.sendStatus(200);
+});
 
 router.post("/enrich", verifyJWT, async (req, res) => {
   if (!req.body) {
@@ -57,17 +68,16 @@ router.post("/enrich", verifyJWT, async (req, res) => {
       .send("You must provide a base64 image, requestId, and socketId");
     return;
   }
-  // Get userId from JWT (set by verifyJWT)
+
   const user = (req as any).user;
   const userId = user && (user.user_id || user.id || user.email || user.sub);
   if (!userId) {
     res.status(401).json({ error: "User ID not found in JWT" });
     return;
   }
-  // Parse the incoming data
+
   const { base64, requestId, socketId, batchInfo } = req.body;
 
-  // Treat missing batchInfo as single batch
   const normalizedBatchInfo = batchInfo || {
     batchId: "",
     batchIndex: 0,
@@ -77,25 +87,18 @@ router.post("/enrich", verifyJWT, async (req, res) => {
     totalItems: 1,
   };
 
-  // Log request
   console.info(
     `[${getCurrentTime()}] [INFO][enrich] Received enrichment request batch ${
       normalizedBatchInfo.batchIndex + 1
-    }/${
-      normalizedBatchInfo.totalBatches
-    } for requestId: ${requestId}, socketId: ${socketId}`
+    }/${normalizedBatchInfo.totalBatches} for requestId: ${requestId}, socketId: ${socketId}`
   );
   console.info(
-    `[${getCurrentTime()}] [DEBUG][enrich] Base64 data: ${base64?.substring(
-      0,
-      100
-    )}..., Length: ${base64?.length || 0}`
+    `[${getCurrentTime()}] [DEBUG][enrich] Base64 data: ${base64?.substring(0, 100)}..., Length: ${base64?.length || 0}`
   );
 
   try {
-    const result = await enrichImage({ base64, requestId, socketId });
+    const result = await publishEnrichRequest({ base64, requestId, socketId });
 
-    // Always return batchInfo
     res.status(202).json({
       ...result,
       batchInfo: {
@@ -105,7 +108,7 @@ router.post("/enrich", verifyJWT, async (req, res) => {
     });
   } catch (error) {
     console.error(
-      `[${getCurrentTime()}] [ERROR][enrich] Error processing enrichment:`,
+      `[${getCurrentTime()}] [ERROR][enrich] Error publishing enrichment request:`,
       error
     );
     res.status(500).json({ message: "Failed to submit enrichment request" });
@@ -116,39 +119,32 @@ router.post("/enrich", verifyJWT, async (req, res) => {
 router.post("/enrich-chunked", async (req, res) => {
   try {
     const chunk = req.body;
-    const { metadata, data } = chunk;
+    const { metadata } = chunk;
 
     console.log(
-      `Received chunk ${metadata.chunkIndex + 1}/${
-        metadata.totalChunks
-      } for session ${metadata.sessionId}`
+      `Received chunk ${metadata.chunkIndex + 1}/${metadata.totalChunks} for session ${metadata.sessionId}`
     );
 
-    // Store chunk
     await chunkAssembler.addChunk(metadata.sessionId, chunk);
 
-    // Check if all chunks received
     if (await chunkAssembler.isComplete(metadata.sessionId)) {
       console.log(
         `All chunks received for session ${metadata.sessionId}, processing...`
       );
 
-      // Reassemble and process
       const fullData = await chunkAssembler.assembleChunks(metadata.sessionId);
       const originalRequest = JSON.parse(fullData);
-      const enrichedResult = await enrichImage(originalRequest);
+      const result = await publishEnrichRequest(originalRequest);
 
-      // Clean up stored chunks
       await chunkAssembler.cleanup(metadata.sessionId);
 
       res.json({
         success: true,
         chunkIndex: metadata.chunkIndex,
         isComplete: true,
-        finalResult: enrichedResult,
+        finalResult: result,
       });
     } else {
-      // Just acknowledge chunk receipt
       res.json({
         success: true,
         chunkIndex: metadata.chunkIndex,
