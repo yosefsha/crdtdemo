@@ -4,3 +4,5 @@ playground/
 secrets/
 iq.tests.ts
 .DS_Store
+__pycache__/
+*.pyc
