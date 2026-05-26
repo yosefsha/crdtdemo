@@ -238,6 +238,9 @@ export class Document<T = any> {
     };
   }
 
+  //TODO: fix this logic it is not clear why called ads data to inneer function.
+  //  either agentId and replica id should be kept in Document level or DeltaPacket shoud not include them
+
   /**
    * Get deltas for an agent with pagination support
    * @param agentId - The agent to get deltas for
@@ -337,7 +340,7 @@ export class Document<T = any> {
     const collectionDeltas: Record<CollectionId, CollectionDelta<T>[]> = {};
 
     // ALWAYS return only incremental deltas (never all deltas)
-    // This prevents massive 25MB payloads when server restarts
+    // This prevents massive payloads when the responding side has no prior replica record
     const replicaCollections =
       this.replicaTimestamps.get(replicaId) || new Map();
 
@@ -438,8 +441,9 @@ export class Document<T = any> {
       });
     });
 
-    // Also update for missing deltas - the agent sent these in their original packet
-    // so they definitely have them (they're "missing" from our perspective, not theirs)
+    // Also update for missing deltas — these are items the responding side has that
+    // were absent from the initiating side's packet. Only correct to mark here if
+    // the responding side actually delivers them to the initiating side.
     Object.entries(mergeResult.missing).forEach(([collectionId, deltas]) => {
       if (!this.agentTimestamps.has(agentId)) {
         this.agentTimestamps.set(agentId, new Map());
@@ -493,8 +497,9 @@ export class Document<T = any> {
       });
     });
 
-    // Also update for missing deltas - the replica sent these in their original packet
-    // so they definitely have them (they're "missing" from our perspective, not theirs)
+    // Also update for missing deltas — these are items the responding side has that
+    // were absent from the initiating side's packet. Only correct to mark here if
+    // the responding side actually delivers them to the initiating side.
     Object.entries(mergeResult.missing).forEach(([collectionId, deltas]) => {
       if (!this.replicaTimestamps.has(replicaId)) {
         this.replicaTimestamps.set(replicaId, new Map());
