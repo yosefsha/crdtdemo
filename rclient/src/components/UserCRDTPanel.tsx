@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useState } from "react"; // eraser tool support added
 import { getTimestamp } from "../helpers";
 import AuthPage from "./AuthPage";
 import CanvasEditor, { toBase64Image } from "./CanvasEditor";
@@ -129,6 +129,7 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
   }, [token, pixelData]);
 
   const [sharedState, setSharedState] = React.useState(0);
+  const [tool, setTool] = useState<"pencil" | "eraser">("pencil");
 
   // Prevent concurrent sync operations
   const syncInProgressRef = React.useRef(false);
@@ -588,6 +589,37 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
         </button>
       </div>
 
+      <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+        <button
+          onClick={() => setTool("pencil")}
+          style={{
+            padding: "6px 14px",
+            fontWeight: "bold",
+            backgroundColor: tool === "pencil" ? "#333" : "#ccc",
+            color: tool === "pencil" ? "white" : "#333",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
+        >
+          ✏️ Pencil
+        </button>
+        <button
+          onClick={() => setTool("eraser")}
+          style={{
+            padding: "6px 14px",
+            fontWeight: "bold",
+            backgroundColor: tool === "eraser" ? "#333" : "#ccc",
+            color: tool === "eraser" ? "white" : "#333",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
+        >
+          🧹 Eraser
+        </button>
+      </div>
+
       <CanvasEditor
         ref={canvasEditorRef}
         width={CANVAS_WIDTH}
@@ -596,7 +628,8 @@ const UserCRDTPanel: React.FC<UserCRDTPanelProps> = ({
         pixelData={pixelData}
         onStateChange={() => {}} // Removed auto-sync
         sharedState={sharedState}
-        cursor="default"
+        cursor={tool === "eraser" ? "cell" : "crosshair"}
+        tool={tool}
       />
     </>
   );

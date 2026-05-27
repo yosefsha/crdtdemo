@@ -20,6 +20,7 @@ interface CanvasEditorProps {
   pixelData: PixelDocument;
   sharedState: number;
   cursor: string;
+  tool?: "pencil" | "eraser";
 }
 
 const CanvasEditor = forwardRef(function CanvasEditor(
@@ -31,6 +32,7 @@ const CanvasEditor = forwardRef(function CanvasEditor(
     pixelData,
     sharedState,
     cursor,
+    tool = "pencil",
   }: CanvasEditorProps,
   ref
 ) {
@@ -157,10 +159,17 @@ const CanvasEditor = forwardRef(function CanvasEditor(
     const crdtY = Math.floor((y / height) * crdtHeight);
 
     // Update pixel data using CRDT coordinates
-    const delta = pixelData.set(PixelDocument.getKey(crdtX, crdtY), color);
-    if (!delta) return;
-    deltasRef.current.push(delta);
-    drawOnCanvas(x, y, color || "ffffffff", ctx);
+    if (tool === "eraser") {
+      const delta = pixelData.set(PixelDocument.getKey(crdtX, crdtY), null);
+      if (!delta) return;
+      deltasRef.current.push(delta);
+      ctx.clearRect(x, y, 1, 1);
+    } else {
+      const delta = pixelData.set(PixelDocument.getKey(crdtX, crdtY), color);
+      if (!delta) return;
+      deltasRef.current.push(delta);
+      drawOnCanvas(x, y, color || "ffffffff", ctx);
+    }
   };
 
   async function drawOnCanvas(
