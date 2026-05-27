@@ -5,22 +5,26 @@ on:
     types: [opened, synchronize, reopened]  
 
 permissions:
-  contents: write       # Allows reading/writing code repo data
-  pull-requests: write  # Crucial: Allows 'gh pr comment' to work
-  issues: write        # Backup requirement for some PR comment endpoints
-  actions: read        # Helps 'gh' fetch run context if needed
+  contents: write       
+  pull-requests: write  
+  issues: write        
+  actions: read        
+
 jobs:
   review:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
+    # Removed the job-level permissions block so it inherits the robust top-level ones
+    
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - uses: anthropics/claude-code-action@v1
+        env:
+          # Explicitly exposing the tokens as env variables for the gh CLI / internal scripts
+          GH_TOKEN: ${{ secrets.GH_PAT }} 
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GH_PAT }}
