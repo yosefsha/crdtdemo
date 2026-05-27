@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react"; // eraser tool support added
 import { getTimestamp } from "../helpers";
 import AuthPage from "./AuthPage";
 import CanvasEditor, { toBase64Image } from "./CanvasEditor";
