@@ -6,3 +6,6 @@ iq.tests.ts
 .DS_Store
 __pycache__/
 *.pyc
+.vscode/
+cdk/cdk.context.json
+cdk/cdk.out/
