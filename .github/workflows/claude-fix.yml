@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: anthropics/claude-code-action@v1.0.2
+      - uses: anthropics/claude-code-action@v1
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         with:
