@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr *)",
+      "Bash(gh api *)",
+      "Bash(gh run *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(cat *)",
+      "Bash(ls *)"
+    ]
+  }
+}
