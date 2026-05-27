@@ -172,7 +172,7 @@ const CanvasEditor = forwardRef(function CanvasEditor(
     }
   };
 
-  async function drawOnCanvas(
+  function drawOnCanvas(
     x: number,
     y: number,
     color: RGBHEX,
