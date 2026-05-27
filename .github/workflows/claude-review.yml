@@ -2,19 +2,17 @@ name: Claude PR Review
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]  
+    types: [opened, synchronize, reopened]
 
 permissions:
-  contents: write       
-  pull-requests: write  
-  issues: write        
-  actions: read        
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
 
 jobs:
   review:
     runs-on: ubuntu-latest
-    # Removed the job-level permissions block so it inherits the robust top-level ones
-    
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,9 +20,7 @@ jobs:
 
       - uses: anthropics/claude-code-action@v1
         env:
-          # Explicitly exposing the tokens as env variables for the gh CLI / internal scripts
-          GH_TOKEN: ${{ secrets.GH_PAT }} 
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GH_PAT }}
