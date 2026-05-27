@@ -362,7 +362,8 @@ export function toBase64Image(
   const canvas = document.createElement("canvas");
   canvas.width = targetWidth;
   canvas.height = targetHeight;
-  const ctx = canvas.getContext("2d")!;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Failed to get 2D context for toBase64Image");
   const imageData = ctx.createImageData(targetWidth, targetHeight);
 
   // Determine the source resolution of the CRDT data
@@ -440,7 +441,8 @@ async function fromBase64Image(
   const canvas = document.createElement("canvas");
   canvas.width = finalWidth;
   canvas.height = finalHeight;
-  const ctx = canvas.getContext("2d")!;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Failed to get 2D context for fromBase64Image");
 
   // Draw the image scaled to fit the target size (or keep original if no scaling)
   ctx.drawImage(img, 0, 0, finalWidth, finalHeight);
